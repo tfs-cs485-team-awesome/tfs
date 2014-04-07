@@ -37,8 +37,14 @@ public class TFS {
                     break;
                 case "Client":
                 case "client":
-                    Client client = new Client("localhost:blah");
-                    client.RunLoop();
+                    if(args.length == 2)
+                    {
+                        Client client = new Client(args[1]);
+                        client.RunLoop();
+                    } else {
+                        System.out.println("Need to specify address and port for client");
+                        return;
+                    }
                     break;
                 default:
                     System.out.println("Invalid argument");

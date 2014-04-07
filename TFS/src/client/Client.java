@@ -23,18 +23,28 @@ public class Client {
      */
     public Client(String mServerInfo)
     {
+        String[] parts = mServerInfo.split(":");
+        if(parts.length != 2)
+        {
+            System.out.println("Server information " + mServerInfo + " is in wrong format");
+            return;
+        }
+        
+        mServerIp = parts[0];
+        mServerPortNum = Integer.valueOf(parts[1]);
     }
+
     /**
-     * @param args the command line arguments
+     *
      */
     public void RunLoop() {
         String sentence;
         String modifiedSentence;
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
         Socket clientSocket;
-        System.out.println("Starting client");
+        System.out.println("Starting client on ip: " + mServerIp + " and port: " + mServerPortNum);
         try {
-            clientSocket = new Socket("localhost", 6789);
+            clientSocket = new Socket(mServerIp, mServerPortNum);
             while (true) {
                 DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
                 BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
