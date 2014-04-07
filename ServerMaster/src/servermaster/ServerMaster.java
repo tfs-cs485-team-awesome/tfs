@@ -15,10 +15,13 @@ import java.io.*;
  */
 public class ServerMaster {
 
+    FileNode mFileRoot;
+    
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        
          String clientSentence;
          String capitalizedSentence;
          try {
