@@ -20,7 +20,7 @@ public class ServerMaster {
     ArrayList<Socket> mClients;
 
     public ServerMaster(int inSocketNum) {
-        mFileRoot = new FileNode();
+        mFileRoot = new FileNode(false);
         mFileRoot.mName = "/";
         mClients = new ArrayList<Socket>();
         try {
@@ -32,7 +32,7 @@ public class ServerMaster {
     }
 
     public ServerMaster() {
-        mFileRoot = new FileNode();
+        mFileRoot = new FileNode(false);
         mFileRoot.mName = "/";
         mClients = new ArrayList<Socket>();
         try {
@@ -135,12 +135,12 @@ public class ServerMaster {
         }
 
         public void CreateNewDir(String name, FileNode parentNode) {
-                System.out.println("Creating new dir " + name);
-                FileNode newDir = new FileNode();
-                newDir.mIsDirectory = true;
-                newDir.mName = name;
-                parentNode.mChildren.add(newDir);
-                System.out.println("Finished creating new dir");
+            System.out.println("Creating new dir " + name);
+            FileNode newDir = new FileNode(false);
+            newDir.mIsDirectory = true;
+            newDir.mName = name;
+            parentNode.mChildren.add(newDir);
+            System.out.println("Finished creating new dir");
             return;
         }
 
@@ -181,6 +181,11 @@ public class ServerMaster {
                             dirExists = true;
                             break;
                         }
+                    }
+                    if (!dirExists) {
+                        System.out.println("Invalid path");
+                        //hacky
+                        return null;
                     }
                 }
                 return curFile;

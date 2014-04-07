@@ -14,8 +14,13 @@ import java.util.ArrayList;
  */
 public class FileNode {
     
-    public FileNode() {
+    public FileNode(boolean isFile) {
+		mIsDirectory = !isFile;
         mChildren = new ArrayList<FileNode>();
+
+		if(isFile) {
+			mFileMetadata = new FileMetadata();
+		}
     }
     /**
     * Metadata for each chunk
@@ -25,6 +30,10 @@ public class FileNode {
     private class ChunkMetadata {
         String mLocation;
         ArrayList<String> mReplicaLocations;
+
+		public ChunkMetadata() {
+			mReplicaLocations = new ArrayList<String>();
+		}
     }
     
     /**
@@ -33,6 +42,10 @@ public class FileNode {
      */
     private class FileMetadata {
         ArrayList<ChunkMetadata> mChunks;
+
+		public FileMetadata() {
+			mChunks = new ArrayList<ChunkMetadata>();
+		}
     }
     String mName;
     boolean mIsDirectory;
@@ -41,5 +54,9 @@ public class FileNode {
     //true  = locked
     boolean mReadLock, mWriteLock;
     ArrayList<FileNode> mChildren;
+
+	//only need to make this if this is actually a file
+	FileMetadata mFileMetadata;
+
     
 }
