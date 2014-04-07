@@ -17,11 +17,12 @@ public class ServerMaster {
 
     FileNode mFileRoot;
     ServerSocket mListenSocket;
-    ArrayList<ServerMasterClientThread> mClients;
+    ArrayList<Socket> mClients;
 
     public ServerMaster(int inSocketNum) {
         mFileRoot = new FileNode();
-        mClients = new ArrayList<ServerMasterClientThread>();
+        mFileRoot.mName = "/";
+        mClients = new ArrayList<Socket>();
         try {
             System.out.println("Starting server on port " + inSocketNum);
             mListenSocket = new ServerSocket(inSocketNum);
@@ -32,7 +33,8 @@ public class ServerMaster {
 
     public ServerMaster() {
         mFileRoot = new FileNode();
-        mClients = new ArrayList<ServerMasterClientThread>();
+        mFileRoot.mName = "/";
+        mClients = new ArrayList<Socket>();
         try {
             mListenSocket = new ServerSocket(6789);
         } catch (Exception e) {
@@ -46,10 +48,14 @@ public class ServerMaster {
 
         System.out.println("Starting server");
         try {
+            ServerMasterClientThread newClientThread = new ServerMasterClientThread(this);
+            newClientThread.start();
             while (true) {
-                ServerMasterClientThread newClientThread = new ServerMasterClientThread(mListenSocket.accept(), this, mClients.size());
-                newClientThread.start();
-                mClients.add(newClientThread);
+                Socket newClient = mListenSocket.accept();
+                synchronized (mClients) {
+                    mClients.add(newClient);
+                    System.out.println("Adding new client");
+                }
             }
         } catch (Exception e) {
             System.out.println(e.getMessage());
@@ -61,39 +67,151 @@ public class ServerMaster {
     private class ServerMasterClientThread extends Thread {
 
         ServerMaster mMaster;
-        Socket mClientSocket;
         int mClientNum;
-        String clientSentence;
-        String capitalizedSentence;
 
-        public ServerMasterClientThread(Socket inClientSocket, ServerMaster inMaster, int inClientNum) {
-            mClientNum = inClientNum;
+        public ServerMasterClientThread(ServerMaster inMaster) {
             mMaster = inMaster;
-            System.out.println("Creating new thread for client num: " + mClientNum);
-            mClientSocket = inClientSocket;
+            System.out.println("Creating client serving thread");
         }
 
         public void run() {
             while (true) {
                 try {
-                    BufferedReader inFromClient
-                            = new BufferedReader(new InputStreamReader(mClientSocket.getInputStream()));
-                    DataOutputStream outToClient = new DataOutputStream(mClientSocket.getOutputStream());
-                    clientSentence = inFromClient.readLine();
-                    System.out.println("C:" + mClientNum + "Received: " + clientSentence);
-                    if (clientSentence == "exit" || clientSentence == "Exit") {
+                    synchronized (mClients) {
+                        for (Socket clientSocket : mMaster.mClients) {
+                            String clientSentence;
+                            String capitalizedSentence;
+                            BufferedReader inFromClient
+                                    = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+                            DataOutputStream outToClient = new DataOutputStream(clientSocket.getOutputStream());
+                            clientSentence = inFromClient.readLine();
+                            System.out.println("Received: " + clientSentence);
+                            if (clientSentence == "exit" || clientSentence == "Exit") {
 
-                        System.out.println("Closing connection with client " + mClientNum);
-                        mClientSocket.close();
-                        return;
+                                System.out.println("Closing connection with client " + mClientNum);
+                                clientSocket.close();
+                                continue;
 
+                            }
+                            ParseClientInput(clientSentence);
+                            capitalizedSentence = clientSentence.toUpperCase() + '\n';
+                            outToClient.writeBytes(capitalizedSentence);
+                        }
                     }
-                    capitalizedSentence = clientSentence.toUpperCase() + '\n';
-                    outToClient.writeBytes(capitalizedSentence);
-                    this.wait();
+                    this.sleep(100);
                 } catch (Exception e) {
-//                    System.out.println(e.getMessage());
+                    System.out.println(e.getMessage());
+                    //e.printStackTrace();
                 }
+
+            }
+        }
+
+        /**
+         *
+         * @param input should be in the format "CommandName Parameters"
+         */
+        public void ParseClientInput(String input) {
+            String[] inputTokens = input.split(" ");
+            System.out.println("Parsing client input");
+            if (inputTokens.length < 2) {
+                System.out.println("Not enough command line parameters");
+                return;
+            }
+            switch (inputTokens[0]) {
+                case "CreateNewDirectory":
+                case "createnewdirectory":
+                case "mkdir":
+                    CreateNewDir(inputTokens[1], mMaster.mFileRoot);
+                    break;
+                case "ListFiles":
+                case "listfiles":
+                case "ls":
+                    ListFiles(inputTokens[1]);
+                    break;
+            }
+            System.out.println("Finished client input");
+            return;
+        }
+
+        public void CreateNewDir(String name, FileNode parentNode) {
+                System.out.println("Creating new dir " + name);
+                FileNode newDir = new FileNode();
+                newDir.mIsDirectory = true;
+                newDir.mName = name;
+                parentNode.mChildren.add(newDir);
+                System.out.println("Finished creating new dir");
+            return;
+        }
+
+        //TODO make a directory version of this
+        //TODO make one that looks for the parent directory given a whole filepath
+        public boolean FileExistsAtPath(String filePath) {
+            String[] filePathTokens = filePath.split("/");
+            FileNode curDir = mMaster.mFileRoot;
+            for (int i = 0; i < filePathTokens.length; ++i) {
+                String dir = filePathTokens[i];
+                boolean dirExists = false;
+                for (FileNode file : curDir.mChildren) {
+                    if (file.mName == dir) {
+                        curDir = file;
+                        dirExists = true;
+                        break;
+                    }
+                }
+                if (!dirExists) {
+                    System.out.println("Invalid path");
+                    //hacky
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        public FileNode GetFileAtPath(String filePath) {
+            if (FileExistsAtPath(filePath)) {
+                String[] filePathTokens = filePath.split("/");
+                FileNode curFile = mMaster.mFileRoot;
+                for (int i = 0; i < filePathTokens.length; ++i) {
+                    String dir = filePathTokens[i];
+                    boolean dirExists = false;
+                    for (FileNode file : curFile.mChildren) {
+                        if (file.mName == dir) {
+                            curFile = file;
+                            dirExists = true;
+                            break;
+                        }
+                    }
+                }
+                return curFile;
+            } else {
+                return null;
+            }
+        }
+
+        public void ListFiles(String filePath) {
+            System.out.println("Listing files for path: " + filePath);
+            String[] filePathTokens = filePath.split("/");
+            FileNode curDir = mMaster.mFileRoot;
+            for (int i = 0; i < filePathTokens.length; ++i) {
+                String dir = filePathTokens[i];
+                boolean dirExists = false;
+                for (FileNode file : curDir.mChildren) {
+                    if (file.mName == dir) {
+                        curDir = file;
+                        dirExists = true;
+                        break;
+                    }
+                }
+                if (!dirExists) {
+                    System.out.println("Invalid path");
+                    //hacky
+                    return;
+                }
+            }
+
+            for (FileNode file : curDir.mChildren) {
+                System.out.println(file.mName);
             }
         }
     }

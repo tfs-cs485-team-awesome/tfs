@@ -14,6 +14,9 @@ import java.util.ArrayList;
  */
 public class FileNode {
     
+    public FileNode() {
+        mChildren = new ArrayList<FileNode>();
+    }
     /**
     * Metadata for each chunk
     * Holds the location of that chunk and the locations of each of the replicas
