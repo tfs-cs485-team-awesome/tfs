@@ -7,6 +7,8 @@ package tfs;
 
 import java.io.*;
 import java.net.*;
+import servermaster.ServerMaster;
+import client.Client;
 
 /**
  *
@@ -18,24 +20,30 @@ public class TFS {
      * @param args the command line arguments
      */
     public static void main(String[] args) {
+        if (args.length == 0) {
+            System.out.println("Needs a command line parameter");
+        } else {
+            switch (args[0]) {
+                case "Server":
+                case "server":
+                    ServerMaster server;
+                    if (args.length == 2) {
+                        server = new ServerMaster(Integer.valueOf(args[1]));
+                    } else {
+                        server = new ServerMaster();
+                    }
 
-        String clientSentence;
-        String capitalizedSentence;
-        try {
-            ServerSocket welcomeSocket = new ServerSocket(6789);
-
-            while (true) {
-                Socket connectionSocket = welcomeSocket.accept();
-                BufferedReader inFromClient
-                        = new BufferedReader(new InputStreamReader(connectionSocket.getInputStream()));
-                DataOutputStream outToClient = new DataOutputStream(connectionSocket.getOutputStream());
-                clientSentence = inFromClient.readLine();
-                System.out.println("Received: " + clientSentence);
-                capitalizedSentence = clientSentence.toUpperCase() + '\n';
-                outToClient.writeBytes(capitalizedSentence);
+                    server.RunLoop();
+                    break;
+                case "Client":
+                case "client":
+                    Client client = new Client("localhost:blah");
+                    client.RunLoop();
+                    break;
+                default:
+                    System.out.println("Invalid argument");
+                    break;
             }
-        } catch (Exception e) {
         }
     }
-
 }
