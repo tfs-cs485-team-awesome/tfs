@@ -18,11 +18,17 @@ public class ServerMaster {
     FileNode mFileRoot;
     ServerSocket mListenSocket;
     ArrayList<Socket> mClients;
+    ArrayList<Socket> mChunkServers;
 
-    public ServerMaster(int inSocketNum) {
+    public void Init() {
         mFileRoot = new FileNode(false);
         mFileRoot.mName = "/";
         mClients = new ArrayList<Socket>();
+        mChunkServers = new ArrayList<Socket>();
+    }
+    
+    public ServerMaster(int inSocketNum) {
+        Init();
         try {
             System.out.println("Starting server on port " + inSocketNum);
             mListenSocket = new ServerSocket(inSocketNum);
@@ -32,9 +38,7 @@ public class ServerMaster {
     }
 
     public ServerMaster() {
-        mFileRoot = new FileNode(false);
-        mFileRoot.mName = "/";
-        mClients = new ArrayList<Socket>();
+        Init();
         try {
             mListenSocket = new ServerSocket(6789);
         } catch (Exception e) {
@@ -43,19 +47,29 @@ public class ServerMaster {
     }
 
     public void RunLoop() {
-        String clientSentence;
-        String capitalizedSentence;
-
         System.out.println("Starting server");
         try {
             ServerMasterClientThread newClientThread = new ServerMasterClientThread(this);
             newClientThread.start();
             while (true) {
-                Socket newClient = mListenSocket.accept();
-                synchronized (mClients) {
-                    mClients.add(newClient);
-                    System.out.println("Adding new client");
+                Socket newConnection = mListenSocket.accept();
+                BufferedReader newConnectionReader = new BufferedReader(new InputStreamReader(newConnection.getInputStream()));
+                String connectionType = newConnectionReader.readLine();
+                switch(connectionType) {
+                    case "Client":
+                        synchronized (mClients) {
+                            mClients.add(newConnection);
+                            System.out.println("Adding new client");
+                        }
+                    break;
+                    case "ChunkServer":
+                        synchronized (mChunkServers) {
+                            mChunkServers.add(newConnection);
+                            System.out.println("Adding new chunkserver");
+                        }
                 }
+                
+               
             }
         } catch (Exception e) {
             System.out.println(e.getMessage());
@@ -98,6 +112,11 @@ public class ServerMaster {
                             outToClient.writeBytes(capitalizedSentence);
                         }
                     }
+                    synchronized(mChunkServers) {
+                        for (Socket chunkSocket : mMaster.mChunkServers) {
+                            
+                        }
+                    }
                     this.sleep(100);
                 } catch (Exception e) {
                     System.out.println(e.getMessage());
@@ -135,22 +154,22 @@ public class ServerMaster {
         }
 
         public void CreateNewDir(String name) {
-            if(GetAtPath(name) != null){
+            if (GetAtPath(name) != null) {
                 System.out.println("Directory already exists");
                 return;
             }
-            
+
             int index = name.lastIndexOf("/");
-            if(index < 0){
+            if (index < 0) {
                 System.out.println("Invalid name");
                 return;
             }
-            
+
             FileNode parentNode = GetAtPath("/");
-            if(index > 1){
+            if (index > 1) {
                 String parent = name.substring(0, index);
                 parentNode = GetAtPath(parent);
-                if(parentNode == null){
+                if (parentNode == null) {
                     System.out.println("Parent directory does not exist");
                     return;
                 }
@@ -159,7 +178,7 @@ public class ServerMaster {
             System.out.println("Creating new dir " + name);
             FileNode newDir = new FileNode(false);
             newDir.mIsDirectory = true;
-            newDir.mName = name.substring(index+1,name.length());
+            newDir.mName = name.substring(index + 1, name.length());
             parentNode.mChildren.add(newDir);
             System.out.println("Finished creating new dir");
             return;
