@@ -16,10 +16,11 @@ public class FileNode {
     
     public FileNode(boolean isFile) {
         mIsDirectory = !isFile;
-        mChildren = new ArrayList<FileNode>();
-
+        if(!isFile){
+            mChildren = new ArrayList<FileNode>();
+        }
         if(isFile) {
-                mFileMetadata = new FileMetadata();
+            mFileMetadata = new FileMetadata();
         }
     }
     /**
@@ -31,9 +32,9 @@ public class FileNode {
         String mLocation;
         ArrayList<String> mReplicaLocations;
 
-		public ChunkMetadata() {
-			mReplicaLocations = new ArrayList<String>();
-		}
+        public ChunkMetadata() {
+                mReplicaLocations = new ArrayList<String>();
+        }
     }
     
     /**
@@ -43,9 +44,9 @@ public class FileNode {
     private class FileMetadata {
         ArrayList<ChunkMetadata> mChunks;
 
-		public FileMetadata() {
-			mChunks = new ArrayList<ChunkMetadata>();
-		}
+        public FileMetadata() {
+                mChunks = new ArrayList<ChunkMetadata>();
+        }
     }
     String mName;
     boolean mIsDirectory;

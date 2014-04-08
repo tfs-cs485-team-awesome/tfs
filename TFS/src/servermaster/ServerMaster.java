@@ -147,6 +147,11 @@ public class ServerMaster {
                 case "mkdir":
                     CreateNewDir(inputTokens[1]);
                     break;
+                case "CreateNewFile":
+                case "createnewfile":
+                case "touch":
+                    CreateNewFile(inputTokens[1]);
+                    break;
                 case "ListFiles":
                 case "listfiles":
                 case "ls":
@@ -157,6 +162,33 @@ public class ServerMaster {
             return;
         }
 
+        public FileNode GetAtPath(String filePath) {
+            if(filePath.indexOf("/") != 0){
+                return null;
+            }
+            String[] filePathTokens = filePath.split("/");
+            FileNode curFile = mMaster.mFileRoot;
+            for (int i = 1; i < filePathTokens.length; ++i) {
+                String dir = filePathTokens[i];
+                boolean dirExists = false;
+                if(!curFile.mIsDirectory){
+                    return null;
+                }
+                for (FileNode file : curFile.mChildren) {
+                    if (file.mName.equalsIgnoreCase(dir)) {
+                        curFile = file;
+                        dirExists = true;
+                        break;
+                    }
+                }
+                if (!dirExists) {
+                    //System.out.println("Invalid path");
+                    return null;
+                }
+            }
+            return curFile;
+        }
+        
         public void CreateNewDir(String name) {
             // check that the first "/" is in the right place
             int firstIndex = name.indexOf("/");
@@ -198,33 +230,58 @@ public class ServerMaster {
             return;
         }
 
-        public FileNode GetAtPath(String filePath) {
-            if(filePath.indexOf("/") != 0){
-                return null;
+        public void CreateNewFile(String name) {
+            // check that the first "/" is in the right place
+            int firstIndex = name.indexOf("/");
+            if(firstIndex != 0){
+                System.out.println("Invalid name");
+                return;
             }
-            String[] filePathTokens = filePath.split("/");
-            FileNode curFile = mMaster.mFileRoot;
-            for (int i = 1; i < filePathTokens.length; ++i) {
-                String dir = filePathTokens[i];
-                boolean dirExists = false;
-                for (FileNode file : curFile.mChildren) {
-                    if (file.mName.equalsIgnoreCase(dir)) {
-                        curFile = file;
-                        dirExists = true;
-                        break;
-                    }
-                }
-                if (!dirExists) {
-                    //System.out.println("Invalid path");
-                    return null;
-                }
-            }
-            return curFile;
-        }
 
+            // check if the given file already exists
+            if(GetAtPath(name) != null){
+                System.out.println("File already exists");
+                return;
+            }
+
+            // check that the last "/" exists
+            int lastIndex = name.lastIndexOf("/");
+            if(lastIndex < 0){
+                System.out.println("Invalid name");
+                return;
+            }
+            // default parent node to the root node
+            FileNode parentNode = GetAtPath("/");
+            // set parent node to the parent directory
+            if(lastIndex > 1){
+                String parent = name.substring(0, lastIndex);
+                parentNode = GetAtPath(parent);
+                if (parentNode == null) {
+                    System.out.println("Parent directory does not exist");
+                    return;
+                }
+            }
+            if(!parentNode.mIsDirectory){
+                System.out.println("Parent is not a directory");
+                return;
+            }
+            // create new file
+            System.out.println("Creating new file " + name);
+            FileNode newFile = new FileNode(true);
+            newFile.mIsDirectory = false;
+            newFile.mName = name.substring(lastIndex+1,name.length());
+            parentNode.mChildren.add(newFile);
+            System.out.println("Finished creating new dir");
+            return;
+        }
+        
         public void ListFiles(String filePath) {
             System.out.println("Listing files for path: " + filePath);
             FileNode fileDir = GetAtPath(filePath);
+            if(!fileDir.mIsDirectory){
+                System.out.println("Path is not a directory");
+                return;
+            }
             if (fileDir != null){
                 for (FileNode file : fileDir.mChildren) {
                     System.out.println(file.mName);
