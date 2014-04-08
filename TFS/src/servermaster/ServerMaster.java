@@ -21,7 +21,7 @@ public class ServerMaster {
 
     public ServerMaster(int inSocketNum) {
         mFileRoot = new FileNode(false);
-        mFileRoot.mName = "/";
+        mFileRoot.mName = "";
         mClients = new ArrayList<Socket>();
         try {
             System.out.println("Starting server on port " + inSocketNum);
@@ -135,6 +135,19 @@ public class ServerMaster {
         }
 
         public void CreateNewDir(String name, FileNode parentNode) {
+            if(GetAtPath(name) != null){
+                System.out.println("Directory already exists");
+                return;
+            }
+            
+            int index = name.lastIndexOf('/') - 1;
+            String parent = name.substring(0, index);
+            FileNode file = GetAtPath(parent);
+            if(file == null){
+                System.out.println("Parent directory does not exist");
+                return;
+            }
+            
             System.out.println("Creating new dir " + name);
             FileNode newDir = new FileNode(false);
             newDir.mIsDirectory = true;
@@ -144,54 +157,47 @@ public class ServerMaster {
             return;
         }
 
-        //TODO make a directory version of this
-        //TODO make one that looks for the parent directory given a whole filepath
-        public boolean FileExistsAtPath(String filePath) {
+// Duplicate functionality compared to GetAtPath
+//        public boolean ExistsAtPath(String filePath) {
+//            String[] filePathTokens = filePath.split("/");
+//            FileNode curDir = mMaster.mFileRoot;
+//            for (int i = 0; i < filePathTokens.length; ++i) {
+//                String dir = filePathTokens[i];
+//                boolean dirExists = false;
+//                for (FileNode file : curDir.mChildren) {
+//                    if (file.mName == dir) {
+//                        curDir = file;
+//                        dirExists = true;
+//                        break;
+//                    }
+//                }
+//                if (!dirExists) {
+//                    System.out.println("Invalid path");
+//                    return false;
+//                }
+//            }
+//            return true;
+//        }
+
+        public FileNode GetAtPath(String filePath) {
             String[] filePathTokens = filePath.split("/");
-            FileNode curDir = mMaster.mFileRoot;
+            FileNode curFile = mMaster.mFileRoot;
             for (int i = 0; i < filePathTokens.length; ++i) {
                 String dir = filePathTokens[i];
                 boolean dirExists = false;
-                for (FileNode file : curDir.mChildren) {
+                for (FileNode file : curFile.mChildren) {
                     if (file.mName == dir) {
-                        curDir = file;
+                        curFile = file;
                         dirExists = true;
                         break;
                     }
                 }
                 if (!dirExists) {
                     System.out.println("Invalid path");
-                    //hacky
-                    return false;
+                    return null;
                 }
             }
-            return true;
-        }
-
-        public FileNode GetFileAtPath(String filePath) {
-            if (FileExistsAtPath(filePath)) {
-                String[] filePathTokens = filePath.split("/");
-                FileNode curFile = mMaster.mFileRoot;
-                for (int i = 0; i < filePathTokens.length; ++i) {
-                    String dir = filePathTokens[i];
-                    boolean dirExists = false;
-                    for (FileNode file : curFile.mChildren) {
-                        if (file.mName == dir) {
-                            curFile = file;
-                            dirExists = true;
-                            break;
-                        }
-                    }
-                    if (!dirExists) {
-                        System.out.println("Invalid path");
-                        //hacky
-                        return null;
-                    }
-                }
-                return curFile;
-            } else {
-                return null;
-            }
+            return curFile;
         }
 
         public void ListFiles(String filePath) {
