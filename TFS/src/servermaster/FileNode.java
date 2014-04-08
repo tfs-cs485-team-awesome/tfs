@@ -15,12 +15,12 @@ import java.util.ArrayList;
 public class FileNode {
     
     public FileNode(boolean isFile) {
-		mIsDirectory = !isFile;
+        mIsDirectory = !isFile;
         mChildren = new ArrayList<FileNode>();
 
-		if(isFile) {
-			mFileMetadata = new FileMetadata();
-		}
+        if(isFile) {
+                mFileMetadata = new FileMetadata();
+        }
     }
     /**
     * Metadata for each chunk
@@ -55,8 +55,7 @@ public class FileNode {
     boolean mReadLock, mWriteLock;
     ArrayList<FileNode> mChildren;
 
-	//only need to make this if this is actually a file
-	FileMetadata mFileMetadata;
+    //only need to make this if this is actually a file
+    FileMetadata mFileMetadata;
 
-    
 }
