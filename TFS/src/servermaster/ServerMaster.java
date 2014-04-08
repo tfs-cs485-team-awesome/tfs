@@ -21,7 +21,7 @@ public class ServerMaster {
 
     public ServerMaster(int inSocketNum) {
         mFileRoot = new FileNode(false);
-        mFileRoot.mName = "";
+        mFileRoot.mName = "/";
         mClients = new ArrayList<Socket>();
         try {
             System.out.println("Starting server on port " + inSocketNum);
@@ -122,7 +122,7 @@ public class ServerMaster {
                 case "CreateNewDirectory":
                 case "createnewdirectory":
                 case "mkdir":
-                    CreateNewDir(inputTokens[1], mMaster.mFileRoot);
+                    CreateNewDir(inputTokens[1]);
                     break;
                 case "ListFiles":
                 case "listfiles":
@@ -134,66 +134,52 @@ public class ServerMaster {
             return;
         }
 
-        public void CreateNewDir(String name, FileNode parentNode) {
+        public void CreateNewDir(String name) {
             if(GetAtPath(name) != null){
                 System.out.println("Directory already exists");
                 return;
             }
             
-            int index = name.lastIndexOf('/') - 1;
-            String parent = name.substring(0, index);
-            FileNode file = GetAtPath(parent);
-            if(file == null){
-                System.out.println("Parent directory does not exist");
+            int index = name.lastIndexOf("/");
+            if(index < 0){
+                System.out.println("Invalid name");
                 return;
             }
             
+            FileNode parentNode = GetAtPath("/");
+            if(index > 1){
+                String parent = name.substring(0, index);
+                parentNode = GetAtPath(parent);
+                if(parentNode == null){
+                    System.out.println("Parent directory does not exist");
+                    return;
+                }
+            }
+
             System.out.println("Creating new dir " + name);
             FileNode newDir = new FileNode(false);
             newDir.mIsDirectory = true;
-            newDir.mName = name;
+            newDir.mName = name.substring(index+1,name.length());
             parentNode.mChildren.add(newDir);
             System.out.println("Finished creating new dir");
             return;
         }
 
-// Duplicate functionality compared to GetAtPath
-//        public boolean ExistsAtPath(String filePath) {
-//            String[] filePathTokens = filePath.split("/");
-//            FileNode curDir = mMaster.mFileRoot;
-//            for (int i = 0; i < filePathTokens.length; ++i) {
-//                String dir = filePathTokens[i];
-//                boolean dirExists = false;
-//                for (FileNode file : curDir.mChildren) {
-//                    if (file.mName == dir) {
-//                        curDir = file;
-//                        dirExists = true;
-//                        break;
-//                    }
-//                }
-//                if (!dirExists) {
-//                    System.out.println("Invalid path");
-//                    return false;
-//                }
-//            }
-//            return true;
-//        }
-
         public FileNode GetAtPath(String filePath) {
             String[] filePathTokens = filePath.split("/");
             FileNode curFile = mMaster.mFileRoot;
-            for (int i = 0; i < filePathTokens.length; ++i) {
+            for (int i = 1; i < filePathTokens.length; ++i) {
                 String dir = filePathTokens[i];
                 boolean dirExists = false;
                 for (FileNode file : curFile.mChildren) {
-                    if (file.mName == dir) {
+                    if (file.mName.equalsIgnoreCase(dir)) {
                         curFile = file;
                         dirExists = true;
                         break;
                     }
                 }
                 if (!dirExists) {
-                    System.out.println("Invalid path");
+                    //System.out.println("Invalid path");
                     return null;
                 }
             }
