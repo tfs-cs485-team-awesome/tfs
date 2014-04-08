@@ -67,6 +67,10 @@ public class ServerMaster {
                             mChunkServers.add(newConnection);
                             System.out.println("Adding new chunkserver");
                         }
+                    break;
+                    default:
+                        System.out.println("Server was told new connection of type: " + connectionType);
+                        break;
                 }
                 
                

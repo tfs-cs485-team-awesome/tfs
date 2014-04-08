@@ -34,9 +34,8 @@ public class Client {
 
     public void InitConnectionWithServer(DataOutputStream outToServer, BufferedReader inFromServer) {
         try {
-
-            outToServer.writeBytes("Client"); //tell server i am a client
-
+            System.out.println("Telling server that I am a client");
+            outToServer.writeBytes("Client\n"); //tell server i am a client
         } catch (IOException ioExcept) {
             System.out.println("Problem initializing connection with server");
             System.out.println(ioExcept.getMessage());
