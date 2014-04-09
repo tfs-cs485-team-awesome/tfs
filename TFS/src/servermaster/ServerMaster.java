@@ -161,6 +161,16 @@ public class ServerMaster {
                     CreateNewDir(inputTokens[1]);
                     output = ""; //need to change this to something to output to client
                     break;
+                case "CreateNewFile":
+                case "createnewfile":
+                case "touch":
+                    CreateNewFile(inputTokens[1]);
+                    break;
+                case "DeleteFile":
+                case "deletefile":
+                case "rm":
+                    DeleteFile(inputTokens[1]);
+                    break;
                 case "ListFiles":
                 case "listfiles":
                 case "ls":
@@ -174,40 +184,44 @@ public class ServerMaster {
             return output;
         }
 
-        public String ReadFile(String name) {
-
-            int firstIndex = name.indexOf("/");
-            if (firstIndex != 0) {
-                System.out.println("Invalid name");
-                return "localhost:6999";
-                //return "";
+        public FileNode GetAtPath(String filePath) {
+            if(filePath.indexOf("/") != 0){
+                filePath = "/" + filePath;
             }
-            FileNode fileToRead = GetAtPath(name);
-            if (fileToRead != null) {
-                //add code to read chunk and stuff
-
-                //temp code to tell client to read from chunk server
-                return "localhost:6999";
+            String[] filePathTokens = filePath.split("/");
+            FileNode curFile = mMaster.mFileRoot;
+            for (int i = 1; i < filePathTokens.length; ++i) {
+                String dir = filePathTokens[i];
+                boolean dirExists = false;
+                if(!curFile.mIsDirectory){
+                    return null;
+                }
+                for (FileNode file : curFile.mChildren) {
+                    if (file.mName.equalsIgnoreCase(dir)) {
+                        curFile = file;
+                        dirExists = true;
+                        break;
+                    }
+                }
+                if (!dirExists) {
+                    //System.out.println("Invalid path");
+                    return null;
+                }
             }
-            return "localhost:6999";
-
-//            return null;
+            return curFile;
         }
-
+        
         public void CreateNewDir(String name) {
             // check that the first "/" is in the right place
             int firstIndex = name.indexOf("/");
-            if (firstIndex != 0) {
-                System.out.println("Invalid name");
-                return;
+            if(firstIndex != 0){
+                name = "/" + name;
             }
-
             // check if the given directory already exists
             if (GetAtPath(name) != null) {
                 System.out.println("Directory already exists");
                 return;
             }
-
             // check that the last "/" exists
             int lastIndex = name.lastIndexOf("/");
             if (lastIndex < 0) {
@@ -235,37 +249,103 @@ public class ServerMaster {
             return;
         }
 
-        public FileNode GetAtPath(String filePath) {
-            if (filePath.indexOf("/") != 0) {
-                return null;
+        public void CreateNewFile(String name) {
+            // check that the first "/" is in the right place
+            int firstIndex = name.indexOf("/");
+            if(firstIndex != 0){
+                name = "/" + name;
             }
-            String[] filePathTokens = filePath.split("/");
-            FileNode curFile = mMaster.mFileRoot;
-            for (int i = 1; i < filePathTokens.length; ++i) {
-                String dir = filePathTokens[i];
-                boolean dirExists = false;
-                for (FileNode file : curFile.mChildren) {
-                    if (file.mName.equalsIgnoreCase(dir)) {
-                        curFile = file;
-                        dirExists = true;
-                        break;
-                    }
-                }
-                if (!dirExists) {
-                    //System.out.println("Invalid path");
-                    return null;
+            // check if the given file already exists
+            if(GetAtPath(name) != null){
+                System.out.println("File already exists");
+                return;
+            }
+            // check that the last "/" exists
+            int lastIndex = name.lastIndexOf("/");
+            if(lastIndex < 0){
+                System.out.println("Invalid name");
+                return;
+            }
+            // default parent node to the root node
+            FileNode parentNode = GetAtPath("/");
+            // set parent node to the parent directory
+            if(lastIndex > 1){
+                String parent = name.substring(0, lastIndex);
+                parentNode = GetAtPath(parent);
+                if (parentNode == null) {
+                    System.out.println("Parent directory does not exist");
+                    return;
                 }
             }
-            return curFile;
+            if(!parentNode.mIsDirectory){
+                System.out.println("Parent is not a directory");
+                return;
+            }
+            // create new file
+            System.out.println("Creating new file " + name);
+            FileNode newFile = new FileNode(true);
+            newFile.mIsDirectory = false;
+            newFile.mName = name.substring(lastIndex+1,name.length());
+            parentNode.mChildren.add(newFile);
+            System.out.println("Finished creating new dir");
+            return;
         }
-
+        
+        public void DeleteFile(String filePath){
+            // check that the first "/" is in the right place
+            int firstIndex = filePath.indexOf("/");
+            if(firstIndex != 0){
+                filePath = "/" + filePath;
+            }
+            // check if the given file exists
+            FileNode file = GetAtPath(filePath);
+            if(file == null){
+                System.out.println("File does not exist");
+                return;
+            }
+            if(file.mIsDirectory){
+                System.out.println("Deletion cancelled, " + filePath + " is a directory");
+                return;
+            }
+            // check that the last "/" exists
+            int lastIndex = filePath.lastIndexOf("/");
+            if(lastIndex < 0){
+                System.out.println("Invalid name");
+                return;
+            }
+            // default parent node to the root node
+            FileNode parentNode = GetAtPath("/");
+            // set parent node to the parent directory
+            if(lastIndex > 1){
+                String parent = filePath.substring(0, lastIndex);
+                parentNode = GetAtPath(parent);
+                if (parentNode == null) {
+                    System.out.println("Parent directory does not exist");
+                    return;
+                }
+            }
+            // delete file
+            System.out.println("Deleting file " + filePath);
+            parentNode.mChildren.remove(file);
+        }
+        
         public void ListFiles(String filePath) {
             System.out.println("Listing files for path: " + filePath);
             FileNode fileDir = GetAtPath(filePath);
-            if (fileDir != null) {
-                for (FileNode file : fileDir.mChildren) {
-                    System.out.println(file.mName);
-                }
+            if (fileDir == null) {
+                System.out.println("No directory named " + filePath + " exists");
+                return;
+            }
+            if(!fileDir.mIsDirectory){
+                System.out.println("Path is not a directory");
+                return;
+            }
+            if(fileDir.mChildren.isEmpty()){
+                System.out.println("No files in directory " + filePath);
+                return;
+            }
+            for (FileNode file : fileDir.mChildren) {
+                System.out.println(file.mName);
             }
         }
     }
