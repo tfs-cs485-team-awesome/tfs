@@ -177,7 +177,6 @@ public class ServerMaster {
                     ListFiles(inputTokens[1]);
                     break;
                 case "ReadFile":
-                    output = ReadFile(inputTokens[1]);
                     break;
             }
             System.out.println("Finished client input");
