@@ -250,6 +250,11 @@ public class ServerMaster {
                     return;
                 }
             }
+            // check for locks in the parent node
+            if (parentNode.mReadLock || parentNode.mWriteLock) {
+                System.out.println("Parent directory is locked, cancelling command");
+                return;
+            }
             // create new directory
             System.out.println("Creating new dir " + name);
             FileNode newDir = new FileNode(false);
@@ -295,6 +300,11 @@ public class ServerMaster {
             // verify if the parent node is a directory
             if(!parentNode.mIsDirectory){
                 System.out.println("Parent is not a directory");
+                return;
+            }
+            // check for locks in the parent node
+            if (parentNode.mReadLock || parentNode.mWriteLock) {
+                System.out.println("Parent directory is locked, cancelling command");
                 return;
             }
             // create new file
@@ -345,6 +355,11 @@ public class ServerMaster {
                     return;
                 }
             }
+            // check for locks in the parent node
+            if (parentNode.mReadLock || parentNode.mWriteLock) {
+                System.out.println("Parent directory is locked, cancelling command");
+                return;
+            }
             // delete file
             System.out.println("Deleting file " + filePath);
             parentNode.mChildren.remove(file);
@@ -367,6 +382,11 @@ public class ServerMaster {
             }
             if(fileDir.mChildren.isEmpty()){
                 System.out.println("No files in directory " + filePath);
+                return;
+            }
+            // check for locks in file directory
+            if (fileDir.mWriteLock) {
+                System.out.println("Directory is locked, cancelling command");
                 return;
             }
             for (FileNode file : fileDir.mChildren) {
