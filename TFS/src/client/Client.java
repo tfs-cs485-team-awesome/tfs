@@ -7,7 +7,8 @@ package client;
 
 import java.net.*;
 import java.io.*;
-
+import tfs.Message;
+import tfs.MySocket;
 /**
  *
  * @author laurencewong
@@ -32,10 +33,12 @@ public class Client {
         mServerPortNum = Integer.valueOf(parts[1]);
     }
 
-    public void InitConnectionWithServer(DataOutputStream outToServer, BufferedReader inFromServer) {
+    public void InitConnectionWithServer(MySocket inSocket) {
         try {
             System.out.println("Telling server that I am a client");
-            outToServer.writeBytes("Client\n"); //tell server i am a client
+            Message toServer = new Message();
+            toServer.WriteString("Client");
+            inSocket.WriteMessage(toServer);
         } catch (IOException ioExcept) {
             System.out.println("Problem initializing connection with server");
             System.out.println(ioExcept.getMessage());
@@ -46,28 +49,44 @@ public class Client {
      *
      */
     public void RunLoop() {
-        String sentence;
-        String modifiedSentence;
+        String sentence = "";
+        String modifiedSentence = "";
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
-        Socket clientSocket;
+        MySocket clientSocket;
         System.out.println("Starting client on ip: " + mServerIp + " and port: " + mServerPortNum);
         while (true) {
             try {
-                clientSocket = new Socket(mServerIp, mServerPortNum);
-                DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
-                BufferedReader inFromServer = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                InitConnectionWithServer(outToServer, inFromServer);
+                clientSocket = new MySocket(mServerIp, mServerPortNum);
+                
+                InitConnectionWithServer(clientSocket);
+                
                 while (true) {
+                    
+                    Message toServer = new Message();
+                    
 
-                    sentence = inFromUser.readLine();
+                    if (inFromUser.ready()) {
+                        sentence = inFromUser.readLine();
+                    }
 
                     if (false /*eventually add heartbeat message check in here*/) {
                         break;
                     }
 
-                    outToServer.writeBytes(sentence + '\n');
-                    modifiedSentence = inFromServer.readLine();
-                    System.out.println("FROM SERVER: " + modifiedSentence);
+                    if (!sentence.isEmpty()) {
+                        toServer.WriteString(sentence);
+                        clientSocket.WriteMessage(toServer);
+                    }
+                    if (clientSocket.hasData()) {
+                        Message fromServer = new Message(clientSocket.ReadBytes());
+                        String response = fromServer.ReadString();
+                        System.out.println("FROM SERVER: " + response);
+                        //hacky temp code
+                        ContactChunkServer(fromServer.ReadString(), sentence);
+
+                    }
+                    sentence = "";
+
                 }
                 clientSocket.close();
             } catch (IOException e) {
@@ -82,7 +101,32 @@ public class Client {
                 }
             }
         }
+    }
 
+    public void ContactChunkServer(String input, String in) {
+        MySocket chunkServerSocket = null;
+        System.out.println("Contacting chunk server with param " + input);
+        if (input.contentEquals("localhost:6999")) {
+            String[] splitInput = input.split(":");
+            try {
+                Message toChunkServer = new Message();
+                System.out.println("Connecting to chunkServer at: " + input);
+                chunkServerSocket = new MySocket(splitInput[0], Integer.valueOf(splitInput[1]));
+
+                InitConnectionWithServer(chunkServerSocket);
+                
+                //outToServer.flush();
+
+                //String toChunk = "ReadFile";
+                toChunkServer.WriteString("ReadFile");
+                chunkServerSocket.WriteMessage((toChunkServer));
+
+                //chunkServerSocket.close();
+            } catch (Exception e) {
+                System.out.println("Problem writing byte");
+                System.out.println(e.getMessage());
+            }
+        }
     }
 
 }

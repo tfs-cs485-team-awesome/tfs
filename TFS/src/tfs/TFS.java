@@ -9,6 +9,7 @@ import java.io.*;
 import java.net.*;
 import servermaster.ServerMaster;
 import client.Client;
+import chunkserver.ChunkServer;
 
 /**
  *
@@ -37,8 +38,7 @@ public class TFS {
                     break;
                 case "Client":
                 case "client":
-                    if(args.length == 2)
-                    {
+                    if (args.length == 2) {
                         Client client = new Client(args[1]);
                         client.RunLoop();
                     } else {
@@ -46,9 +46,19 @@ public class TFS {
                         return;
                     }
                     break;
+                case "Chunk":
+                case "ChunkServer":
+                case "chunk":
+                case "chunkserver":
+                    if (args.length == 3) {
+                        ChunkServer chunk = new ChunkServer(args[1], args[2]);
+                        chunk.RunLoop();
+                    }
+                    break;
                 default:
                     System.out.println("Invalid argument");
                     break;
+
             }
         }
     }
