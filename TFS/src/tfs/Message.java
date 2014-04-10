@@ -183,4 +183,8 @@ public class Message implements Serializable {
     public boolean isFinished() {
         return (mReadHead == mWriteHead);
     }
+    
+    public void ResetReadHead() {
+        mReadHead = 0;
+    }
 }

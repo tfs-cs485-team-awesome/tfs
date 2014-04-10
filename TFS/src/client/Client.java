@@ -18,7 +18,7 @@ public class Client {
 
     String mServerIp;
     int mServerPortNum;
-
+    MySocket serverSocket;
     /**
      *
      * @param mServerInfo a string that MUST be in the format ip:port
@@ -53,13 +53,12 @@ public class Client {
         String sentence = "";
         String modifiedSentence = "";
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
-        MySocket clientSocket;
         System.out.println("Starting client on ip: " + mServerIp + " and port: " + mServerPortNum);
         while (true) {
             try {
-                clientSocket = new MySocket(mServerIp, mServerPortNum);
+                serverSocket = new MySocket(mServerIp, mServerPortNum);
 
-                InitConnectionWithServer(clientSocket);
+                InitConnectionWithServer(serverSocket);
 
                 while (true) {
 
@@ -78,16 +77,18 @@ public class Client {
                         for (String s : sentenceTokenized) {
                             toServer.WriteString(s);
                         }
-
-                        clientSocket.WriteMessage(toServer);
+                        if(ValidMessage(toServer)){
+                            toServer.ResetReadHead();
+                            serverSocket.WriteMessage(toServer);
+                        }
                     }
-                    if (clientSocket.hasData()) {
-                        Message fromServer = new Message(clientSocket.ReadBytes());
+                    if (serverSocket.hasData()) {
+                        Message fromServer = new Message(serverSocket.ReadBytes());
                         String response = fromServer.ReadString();
                         System.out.println("FROM SERVER: " + response);
                         //hacky temp code
                         if(!fromServer.isFinished()) {
-                            System.out.println("Message wasnot finished");
+                            System.out.println("Message was not finished");
                             ParseInput(fromServer);
                         }
 
@@ -95,7 +96,7 @@ public class Client {
                     sentence = "";
 
                 }
-                clientSocket.close();
+                serverSocket.close();
             } catch (IOException e) {
                 if (e.getMessage().contentEquals("Connection refused")) {
                     System.out.println("Server is not online.  Attempting to reconnect in 3s");
@@ -110,11 +111,80 @@ public class Client {
         }
     }
     
+    public Boolean ValidMessage(Message m) {
+        String input = m.ReadString();
+        switch(input) {
+            case "CreateNewDirectory":
+            case "createnewdirectory":
+            case "mkdir":
+                return ValidMessageString(m);
+            case "CreateNewFile":
+            case "createnewfile":
+            case "touch":
+                return ValidMessageString(m);
+            case "DeleteFile":
+            case "deletefile":
+            case "rm":
+                return ValidMessageString(m);
+            case "ListFiles":
+            case "listfiles":
+            case "ls":
+                return ValidMessageString(m);
+            case "ReadFile":
+            case "readfile":
+            case "read":
+                return ValidMessageInt(m);
+            case "AppendToFile":
+            case "appendtofile":
+            case "append":
+                return ValidMessageData(m);
+        }
+        System.out.println("Not a recognized command");
+        return false;
+    }
+
+    public Boolean ValidMessageString(Message m){
+        try {
+            String parameter = m.ReadString();
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid command");
+            return false;
+        }
+        return true;
+    }
+    
+    public Boolean ValidMessageInt(Message m){
+        try {
+            int parameter = m.ReadInt();
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid command");
+            return false;
+        }
+        return true;    
+    }
+    
+    public Boolean ValidMessageData(Message m){
+        try {
+            int length = m.ReadInt();
+            byte[] data = m.ReadData(length);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid command");
+            return false;
+        }
+        return true;    
+    }
+    
     public void ParseInput(Message m) {
         String input = m.ReadString();
         switch(input) {
             case "ChunkInfo":
                 ContactChunkServer(m);
+                break;
+            case "AppendToFileResponse":
+                AppendToFileResponse(m);
+                break;
+            case "ReadFromFileResponse":
+                ReadFromFileResponse(m);
                 break;
         }
     }
@@ -141,5 +211,15 @@ public class Client {
                 System.out.println(e.getMessage());
             }
         }
+    }
+        
+    public void AppendToFileResponse(Message m) {
+        // if master returns chunk to be created, contact chunk server to create chunks
+        
+        // after getting chunks, append to end of chunk
+    }
+    
+    public void ReadFromFileResponse(Message m){
+        
     }
 }

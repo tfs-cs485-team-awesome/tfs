@@ -156,6 +156,13 @@ public class ServerMaster {
                     ListFiles(m.ReadString());
                     break;
                 case "ReadFile":
+                case "readfile":
+                case "read":
+                    break;
+                case "AppendToFile":
+                case "appendtofile":
+                case "append":
+                    AppendToFile(m.ReadString(), m.ReadData(m.ReadInt()));
                     break;
             }
             System.out.println("Finished client input");
@@ -295,6 +302,10 @@ public class ServerMaster {
             System.out.println("Finished creating new dir");
             return;
         }
+                
+        public void AppendToFile(String chunkName, byte[] data){
+            
+        }
         
         /**
          * Removes a given file from the parent's list of children
@@ -348,11 +359,11 @@ public class ServerMaster {
          * Checks path and lists all children in the path
          * @param filePath directory to search through
          */
-        public void ListFiles(String filePath) {
-            System.out.println("Listing files for path: " + filePath);
-            FileNode fileDir = GetAtPath(filePath);
+        public void ListFiles(String directory) {
+            System.out.println("Listing files in directory: " + directory);
+            FileNode fileDir = GetAtPath(directory);
             if (fileDir == null) {
-                System.out.println("No directory named " + filePath + " exists");
+                System.out.println("No directory named " + directory + " exists");
                 return;
             }
             if(!fileDir.mIsDirectory){
@@ -360,7 +371,7 @@ public class ServerMaster {
                 return;
             }
             if(fileDir.mChildren.isEmpty()){
-                System.out.println("No files in directory " + filePath);
+                System.out.println("No files in directory " + directory);
                 return;
             }
             // check for locks in file directory
