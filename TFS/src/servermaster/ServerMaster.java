@@ -138,7 +138,7 @@ public class ServerMaster {
                 case "CreateNewDirectory":
                 case "createnewdirectory":
                 case "mkdir":
-                    CreateNewDir(m.ReadString(), outputToClient);
+                    CreateNewDir(m.ReadString());
                     break;
                 case "CreateNewFile":
                 case "createnewfile":
@@ -236,7 +236,6 @@ public class ServerMaster {
             }
             // create new directory
             System.out.println("Creating new dir " + name);
-            m.WriteString("Creating new dir " + name);
             FileNode newDir = new FileNode(false);
             newDir.mIsDirectory = true;
             newDir.mName = name.substring(lastIndex + 1, name.length());
