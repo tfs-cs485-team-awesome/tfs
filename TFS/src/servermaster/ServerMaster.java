@@ -85,7 +85,7 @@ public class ServerMaster {
         System.out.println("Exiting server");
     }
 
-    private class ServerMasterClientThread extends Thread {
+    public class ServerMasterClientThread extends Thread {
 
         ServerMaster mMaster;
         int mClientNum;
