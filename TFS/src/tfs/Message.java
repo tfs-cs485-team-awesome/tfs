@@ -53,18 +53,15 @@ public class Message implements Serializable {
     private int mReadHead = 0;
     private int mWriteHead = 0;
     private byte[] mByteContents;
-    
-    private ArrayList<String> mDebugStatements;
+   
 
     public Message() {
        mByteContents = new byte[0];
-       mDebugStatements = new ArrayList<String>();
     }
    
     public Message(byte[] inArray) {
         mByteContents = inArray;
         mWriteHead = inArray.length; //assumes that inArray is full
-        mDebugStatements = new ArrayList<String>();
         
         //Read any debug statements that came in with the message
         /*int numDebugStatements = ReadInt();
@@ -170,11 +167,8 @@ public class Message implements Serializable {
     }
     
     public void WriteDebugStatement(String inDebugStatement) {
-        mDebugStatements.add(inDebugStatement);
-    }
-    
-    public ArrayList<String> GetDebugStatements() {
-        return mDebugStatements;
+        WriteString("Print");
+        WriteString(inDebugStatement);
     }
     
     public boolean isEmpty() {
