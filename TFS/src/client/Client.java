@@ -82,8 +82,8 @@ public class Client {
                             serverSocket.WriteMessage(toServer);
                         }
                     }
-                    if (clientSocket.hasData()) {
-                        Message fromServer = new Message(clientSocket.ReadBytes());
+                    if (serverSocket.hasData()) {
+                        Message fromServer = new Message(serverSocket.ReadBytes());
                         while(!fromServer.isFinished()) {
                             //message has data
                             ParseInput(fromServer);
