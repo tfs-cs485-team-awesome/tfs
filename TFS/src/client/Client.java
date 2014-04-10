@@ -82,13 +82,10 @@ public class Client {
                             serverSocket.WriteMessage(toServer);
                         }
                     }
-                    if (serverSocket.hasData()) {
-                        Message fromServer = new Message(serverSocket.ReadBytes());
-                        String response = fromServer.ReadString();
-                        System.out.println("FROM SERVER: " + response);
-                        //hacky temp code
-                        if(!fromServer.isFinished()) {
-                            System.out.println("Message was not finished");
+                    if (clientSocket.hasData()) {
+                        Message fromServer = new Message(clientSocket.ReadBytes());
+                        while(!fromServer.isFinished()) {
+                            //message has data
                             ParseInput(fromServer);
                         }
 
@@ -177,6 +174,10 @@ public class Client {
     public void ParseInput(Message m) {
         String input = m.ReadString();
         switch(input) {
+            case "Print":
+                //print out a debug statement
+                System.out.println(m.ReadString());
+                break;
             case "ChunkInfo":
                 ContactChunkServer(m);
                 break;

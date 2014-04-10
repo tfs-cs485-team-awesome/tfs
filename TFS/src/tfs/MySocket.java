@@ -56,6 +56,7 @@ public class MySocket {
 
     public void WriteBytes(byte[] inBytes, int offset, int length) throws IllegalArgumentException, IOException {
         if (length == 0) {
+
             //don't write
             return;
         }
