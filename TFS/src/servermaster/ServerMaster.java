@@ -160,12 +160,12 @@ public class ServerMaster {
                 case "ReadFile":
                 case "readfile":
                 case "read":
-                    ReadFile(m.ReadString(), m.ReadInt());
+                    ReadFile(m.ReadString(), m.ReadInt(), m.ReadInt(), outputToClient);
                     break;
                 case "WriteFile":
                 case "writefile":
                 case "write":
-                    WriteFile(m.ReadString(), m.ReadData(m.ReadInt()));
+                    WriteFile(m.ReadString(), m.ReadData(m.ReadInt()), outputToClient);
                     break;
             }
             System.out.println("Finished client input");
@@ -320,7 +320,7 @@ public class ServerMaster {
             return;
         }
                 
-        public void ReadFile(String fileName, int length){
+        public void ReadFile(String fileName, int offset, int length, Message output){
             FileNode file = GetAtPath(fileName);
             if (file == null) {
                 System.out.println("File does not exist");
@@ -329,7 +329,7 @@ public class ServerMaster {
             
         }
         
-        public void WriteFile(String fileName, byte[] data){
+        public void WriteFile(String fileName, byte[] data, Message output){
             
         }
         

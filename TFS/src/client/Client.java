@@ -130,7 +130,7 @@ public class Client {
             case "ReadFile":
             case "readfile":
             case "read":
-                return ValidMessageInt(m);
+                return ValidMessageIntInt(m);
             case "WriteFile":
             case "writetofile":
             case "write":
@@ -153,6 +153,17 @@ public class Client {
     public Boolean ValidMessageInt(Message m){
         try {
             int parameter = m.ReadInt();
+        } catch (IllegalArgumentException e) {
+            System.out.println("Invalid command");
+            return false;
+        }
+        return true;    
+    }
+    
+    public Boolean ValidMessageIntInt(Message m){
+        try {
+            int parameter1 = m.ReadInt();
+            int parameter2 = m.ReadInt();
         } catch (IllegalArgumentException e) {
             System.out.println("Invalid command");
             return false;
