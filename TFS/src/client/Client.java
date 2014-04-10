@@ -9,6 +9,7 @@ import java.net.*;
 import java.io.*;
 import tfs.Message;
 import tfs.MySocket;
+
 /**
  *
  * @author laurencewong
@@ -57,13 +58,12 @@ public class Client {
         while (true) {
             try {
                 clientSocket = new MySocket(mServerIp, mServerPortNum);
-                
+
                 InitConnectionWithServer(clientSocket);
-                
+
                 while (true) {
-                    
+
                     Message toServer = new Message();
-                    
 
                     if (inFromUser.ready()) {
                         sentence = inFromUser.readLine();
@@ -74,7 +74,11 @@ public class Client {
                     }
 
                     if (!sentence.isEmpty()) {
-                        toServer.WriteString(sentence);
+                        String[] sentenceTokenized = sentence.split(" ");
+                        for (String s : sentenceTokenized) {
+                            toServer.WriteString(s);
+                        }
+
                         clientSocket.WriteMessage(toServer);
                     }
                     if (clientSocket.hasData()) {
@@ -82,7 +86,10 @@ public class Client {
                         String response = fromServer.ReadString();
                         System.out.println("FROM SERVER: " + response);
                         //hacky temp code
-                        ContactChunkServer(fromServer.ReadString(), sentence);
+                        if(!fromServer.isFinished()) {
+                            System.out.println("Message wasnot finished");
+                            ParseInput(fromServer);
+                        }
 
                     }
                     sentence = "";
@@ -102,26 +109,33 @@ public class Client {
             }
         }
     }
+    
+    public void ParseInput(Message m) {
+        String input = m.ReadString();
+        switch(input) {
+            case "ChunkInfo":
+                ContactChunkServer(m);
+                break;
+        }
+    }
 
-    public void ContactChunkServer(String input, String in) {
+    public void ContactChunkServer(Message m) {
         MySocket chunkServerSocket = null;
-        System.out.println("Contacting chunk server with param " + input);
-        if (input.contentEquals("localhost:6999")) {
-            String[] splitInput = input.split(":");
+        String chunkServerInfo = m.ReadString();
+        System.out.println("Contacting chunk server with param " + chunkServerInfo);
+        if (chunkServerInfo.contentEquals("localhost:6999")) {
+            String[] splitInput = chunkServerInfo.split(":");
             try {
                 Message toChunkServer = new Message();
-                System.out.println("Connecting to chunkServer at: " + input);
+                System.out.println("Connecting to chunkServer at: " + chunkServerInfo);
                 chunkServerSocket = new MySocket(splitInput[0], Integer.valueOf(splitInput[1]));
 
                 InitConnectionWithServer(chunkServerSocket);
                 
-                //outToServer.flush();
-
-                //String toChunk = "ReadFile";
                 toChunkServer.WriteString("ReadFile");
                 chunkServerSocket.WriteMessage((toChunkServer));
 
-                //chunkServerSocket.close();
+                chunkServerSocket.close();
             } catch (Exception e) {
                 System.out.println("Problem writing byte");
                 System.out.println(e.getMessage());

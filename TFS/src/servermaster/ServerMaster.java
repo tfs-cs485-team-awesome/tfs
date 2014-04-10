@@ -101,29 +101,10 @@ public class ServerMaster {
                     synchronized (mClients) {
                         for (MySocket clientSocket : mMaster.mClients) {
                             
-                            /*String clientSentence;
-                            String capitalizedSentence;
-                            BufferedReader inFromClient
-                                    = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                            DataOutputStream outToClient = new DataOutputStream(clientSocket.getOutputStream());*/
-                            
-                            
                             if (clientSocket.hasData()) {
                                 Message messageReceived = new Message(clientSocket.ReadBytes());
                                 Message messageSending = new Message();
-                                String clientMessage = messageReceived.ReadString();
-                                System.out.println("Received: " + clientMessage);
-                                messageSending.WriteString("Server Received: " + clientMessage);
-                                if (clientMessage == "exit" || clientMessage == "Exit") {
-
-                                    System.out.println("Closing connection with client " + mClientNum);
-                                    clientSocket.close();
-                                    continue;
-
-                                }
-                                String toClient = ParseClientInput(clientMessage);
-                                messageSending.WriteString(toClient);
-                                //capitalizedSentence = clientSentence.toUpperCase() + '\n';
+                                messageSending = ParseClientInput(messageReceived);
                                 clientSocket.WriteMessage(messageSending);
                             }
                         }
@@ -135,7 +116,9 @@ public class ServerMaster {
                     }
                     this.sleep(100);
                 } catch (Exception e) {
+                    
                     System.out.println(e.getMessage());
+                    e.printStackTrace();
                     //e.printStackTrace();
                 }
 
@@ -146,41 +129,37 @@ public class ServerMaster {
          *
          * @param input should be in the format "CommandName Parameters"
          */
-        public String ParseClientInput(String input) {
-            String output = "";
-            String[] inputTokens = input.split(" ");
-            System.out.println("Parsing client input");
-            if (inputTokens.length < 2) {
-                System.out.println("Not enough command line parameters");
-                return "";
-            }
-            switch (inputTokens[0]) {
+        public Message ParseClientInput(Message m) {
+            Message outputToClient = new Message();
+
+            String command = m.ReadString();
+            System.out.println("Server Received: " + command);
+            switch (command) {
                 case "CreateNewDirectory":
                 case "createnewdirectory":
                 case "mkdir":
-                    CreateNewDir(inputTokens[1]);
-                    output = ""; //need to change this to something to output to client
+                    CreateNewDir(m.ReadString(), outputToClient);
                     break;
                 case "CreateNewFile":
                 case "createnewfile":
                 case "touch":
-                    CreateNewFile(inputTokens[1]);
+                    CreateNewFile(m.ReadString());
                     break;
                 case "DeleteFile":
                 case "deletefile":
                 case "rm":
-                    DeleteFile(inputTokens[1]);
+                    DeleteFile(m.ReadString());
                     break;
                 case "ListFiles":
                 case "listfiles":
                 case "ls":
-                    ListFiles(inputTokens[1]);
+                    ListFiles(m.ReadString());
                     break;
                 case "ReadFile":
                     break;
             }
             System.out.println("Finished client input");
-            return output;
+            return outputToClient;
         }
 
         public FileNode GetAtPath(String filePath) {
@@ -210,7 +189,7 @@ public class ServerMaster {
             return curFile;
         }
         
-        public void CreateNewDir(String name) {
+        public void CreateNewDir(String name, Message m ) {
             // check that the first "/" is in the right place
             int firstIndex = name.indexOf("/");
             if(firstIndex != 0){
@@ -240,6 +219,7 @@ public class ServerMaster {
             }
             // create new directory
             System.out.println("Creating new dir " + name);
+            m.WriteString("Creating new dir " + name);
             FileNode newDir = new FileNode(false);
             newDir.mIsDirectory = true;
             newDir.mName = name.substring(lastIndex + 1, name.length());

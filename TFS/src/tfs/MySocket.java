@@ -8,6 +8,7 @@ package tfs;
 import java.net.*;
 import java.io.*;
 import tfs.Message;
+import java.util.ArrayList;
 
 /**
  *
@@ -27,14 +28,24 @@ public class MySocket {
         mDataReader = new BufferedReader(new InputStreamReader(mDataInput));
     }
 
-    public MySocket(Socket inSocket) throws IOException{
+    public MySocket(Socket inSocket) throws IOException {
         mSocket = inSocket;
         mDataOutput = new DataOutputStream(mSocket.getOutputStream());
         mDataInput = new DataInputStream(mSocket.getInputStream());
         mDataReader = new BufferedReader(new InputStreamReader(mDataInput));
     }
-    
+
     public void WriteMessage(Message m) throws IOException {
+        //Write any debug statements if they exist
+/*        Message newMessage = new Message();
+        ArrayList<String> debugStatements = m.GetDebugStatements();
+        newMessage.WriteInt(debugStatements.size());
+        for (String s : m.GetDebugStatements()) {
+            newMessage.WriteString(s);
+        }
+        newMessage.AppendData(m.ReadData());
+        */
+        //Write internal data
         byte[] messageBytes = m.ReadData();
         WriteBytes(messageBytes);
     }
@@ -44,11 +55,16 @@ public class MySocket {
     }
 
     public void WriteBytes(byte[] inBytes, int offset, int length) throws IllegalArgumentException, IOException {
+        if (length == 0) {
+            //don't write
+            return;
+        }
+
         if (offset < 0 || offset >= length) {
-            throw new IllegalArgumentException("Offset cannot be less than 0 or greater than length");
+            throw new IllegalArgumentException("Offset cannot be less than 0 or greater than length.  Offset: " + offset);
         }
         if (length < 0) {
-            throw new IllegalArgumentException("Length cannot be less than 0");
+            throw new IllegalArgumentException("Length cannot be less than 0.  Length: " + length);
         }
 
         mDataOutput.writeInt(length);
@@ -67,8 +83,8 @@ public class MySocket {
     public boolean hasData() throws IOException {
         return mDataReader.ready();
     }
-    
-    public void close() throws IOException{
+
+    public void close() throws IOException {
         mSocket.close();
     }
 }

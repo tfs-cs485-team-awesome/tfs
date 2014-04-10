@@ -30,7 +30,7 @@ public class ChunkServer {
             mChunkFile = new File(String.valueOf(inName));
             try {
                 mChunkRandomFile = new RandomAccessFile(mChunkFile, "rw"); //makes the new file
-                mChunkRandomFile.setLength(67108864);
+                mChunkRandomFile.setLength(67108864); //magic number - 64MB
             } catch (FileNotFoundException fe) {
                 System.out.println("Not able to create randomAccessFile for chunk");
                 System.out.println(fe.getMessage());
@@ -144,12 +144,8 @@ public class ChunkServer {
                         for (MySocket clientSocket : mMain.mClients) {
                             
                             if (clientSocket.hasData()) {
-                                System.out.println("inFromClient Ready");
                                 Message fromClient = new Message(clientSocket.ReadBytes());
-                                String fromClientString = fromClient.ReadString();
-                                System.out.println("ChunkServer received: " + fromClientString);
-                                
-                                ParseClientInput(fromClientString);
+                                ParseClientInput(fromClient);
                             }
                         }
                     }
@@ -175,8 +171,8 @@ public class ChunkServer {
             }
         }
 
-        public void ParseClientInput(String input) {
-
+        public void ParseClientInput(Message m) {
+            String input = m.ReadString();
             System.out.println("Parsing client input");
             switch (input) {
                 case "ReadFile":

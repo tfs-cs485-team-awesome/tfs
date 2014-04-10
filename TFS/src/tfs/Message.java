@@ -5,9 +5,10 @@
  */
 package tfs;
 
-import java.net.*;
 import java.io.*;
+import java.net.*;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 
 /**Message class holds a generic byte array
  * Acts like a one way stack that holds generic data
@@ -52,14 +53,25 @@ public class Message implements Serializable {
     private int mReadHead = 0;
     private int mWriteHead = 0;
     private byte[] mByteContents;
+    
+    private ArrayList<String> mDebugStatements;
 
     public Message() {
-        mByteContents = new byte[16]; //default to 16
+       mByteContents = new byte[0];
+       mDebugStatements = new ArrayList<String>();
     }
-    
+   
     public Message(byte[] inArray) {
         mByteContents = inArray;
         mWriteHead = inArray.length; //assumes that inArray is full
+        mDebugStatements = new ArrayList<String>();
+        
+        //Read any debug statements that came in with the message
+        /*int numDebugStatements = ReadInt();
+        for(int i = 0; i < numDebugStatements; ++i) {
+            System.out.println(ReadString());
+        }
+        */
     }
 
     /**
@@ -68,7 +80,9 @@ public class Message implements Serializable {
      * @param inData The data to add to the byte array
      */
     public void AppendData(byte[] inData) {
-
+        if(mByteContents.length == 0) {
+            mByteContents = new byte[inData.length];
+        }
         while (mWriteHead + inData.length > mByteContents.length) {
             //must resize byte array
             byte[] newByteArray = new byte[mByteContents.length * 2];
@@ -114,6 +128,11 @@ public class Message implements Serializable {
     public void WriteInt(int i) {
         AppendData(ByteBuffer.allocate(4).putInt(i).array());
     }
+    
+    public int ReadInt() {
+        byte[] intData = ReadData(4);
+        return ByteBuffer.wrap(intData).getInt();
+    }
 
     /**
      * Writes a string to the byte array
@@ -149,5 +168,19 @@ public class Message implements Serializable {
             System.out.println(ioe.getMessage());
         }
     }
-
+    
+    public void WriteDebugStatement(String inDebugStatement) {
+        mDebugStatements.add(inDebugStatement);
+    }
+    
+    public ArrayList<String> GetDebugStatements() {
+        return mDebugStatements;
+    }
+    
+    public boolean isEmpty() {
+        return (mByteContents.length == 0);
+    }
+    public boolean isFinished() {
+        return (mReadHead == mWriteHead);
+    }
 }
