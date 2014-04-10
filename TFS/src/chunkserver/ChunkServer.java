@@ -166,7 +166,6 @@ public class ChunkServer {
             switch (input) {
                 case "NewChunk":
                     System.out.println("Making new chunk");
-
                     break;
             }
         }
@@ -176,9 +175,13 @@ public class ChunkServer {
             System.out.println("Parsing client input");
             switch (input) {
                 case "ReadFile":
+                case "readfile":
+                case "read":
                     System.out.println("Reading file");
                     break;
                 case "WriteFile":
+                case "writefile":
+                case "write":    
                     System.out.println("Writing file");
                     break;
                 default:
@@ -189,5 +192,13 @@ public class ChunkServer {
             return;
         }
 
+        public void ReadFile(){
+            
+        }
+        
+        public void WriteFile(){
+            
+        }
+        
     }
 }

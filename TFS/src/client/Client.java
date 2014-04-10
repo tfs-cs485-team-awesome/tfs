@@ -134,9 +134,9 @@ public class Client {
             case "readfile":
             case "read":
                 return ValidMessageInt(m);
-            case "AppendToFile":
-            case "appendtofile":
-            case "append":
+            case "WriteFile":
+            case "writetofile":
+            case "write":
                 return ValidMessageData(m);
         }
         System.out.println("Not a recognized command");
@@ -180,11 +180,11 @@ public class Client {
             case "ChunkInfo":
                 ContactChunkServer(m);
                 break;
-            case "AppendToFileResponse":
-                AppendToFileResponse(m);
+            case "WriteFileResponse":
+                WriteFileResponse(m);
                 break;
-            case "ReadFromFileResponse":
-                ReadFromFileResponse(m);
+            case "ReadFileResponse":
+                ReadFileResponse(m);
                 break;
         }
     }
@@ -213,13 +213,13 @@ public class Client {
         }
     }
         
-    public void AppendToFileResponse(Message m) {
+    public void WriteFileResponse(Message m) {
         // if master returns chunk to be created, contact chunk server to create chunks
         
         // after getting chunks, append to end of chunk
     }
     
-    public void ReadFromFileResponse(Message m){
+    public void ReadFileResponse(Message m){
         
     }
 }

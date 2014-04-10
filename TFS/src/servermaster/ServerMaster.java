@@ -5,8 +5,11 @@
  */
 package servermaster;
 
-import java.net.*;
 import java.io.*;
+import java.net.*;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import tfs.Message;
 import tfs.MySocket;
@@ -158,11 +161,12 @@ public class ServerMaster {
                 case "ReadFile":
                 case "readfile":
                 case "read":
+                    ReadFile(m.ReadString(), m.ReadInt());
                     break;
-                case "AppendToFile":
-                case "appendtofile":
-                case "append":
-                    AppendToFile(m.ReadString(), m.ReadData(m.ReadInt()));
+                case "WriteFile":
+                case "writefile":
+                case "write":
+                    WriteFile(m.ReadString(), m.ReadData(m.ReadInt()));
                     break;
             }
             System.out.println("Finished client input");
@@ -303,7 +307,16 @@ public class ServerMaster {
             return;
         }
                 
-        public void AppendToFile(String chunkName, byte[] data){
+        public void ReadFile(String fileName, int length){
+            FileNode file = GetAtPath(fileName);
+            if (file == null) {
+                System.out.println("File does not exist");
+                return;
+            }
+            
+        }
+        
+        public void WriteFile(String fileName, byte[] data){
             
         }
         
@@ -350,9 +363,20 @@ public class ServerMaster {
                 System.out.println("Parent directory is locked, cancelling command");
                 return;
             }
+            // check for locks on the file
+            if (file.mReadLock || file.mWriteLock) {
+                System.out.println("File is currently in use, cancelling command");
+                return;
+            }
             // delete file
             System.out.println("Deleting file " + filePath);
             parentNode.mChildren.remove(file);
+            try {
+                Path path = FileSystems.getDefault().getPath(filePath);
+                Files.deleteIfExists(path);
+            } catch (IOException ie) {
+                System.out.println("Could not delete physical file");
+            }
         }
         
         /**
