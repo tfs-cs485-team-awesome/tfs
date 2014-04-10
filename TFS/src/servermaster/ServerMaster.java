@@ -126,7 +126,7 @@ public class ServerMaster {
         }
 
         /**
-         *
+         * Parses the client's input into a command and a parameter
          * @param input should be in the format "CommandName Parameters"
          */
         public Message ParseClientInput(Message m) {
@@ -162,18 +162,26 @@ public class ServerMaster {
             return outputToClient;
         }
 
+        /**
+         * Retrieves and returns a file node specified in the parameter
+         * @param filePath path to file
+         * @return file node
+         */
         public FileNode GetAtPath(String filePath) {
+            // check for the initial "/"
             if(filePath.indexOf("/") != 0){
                 filePath = "/" + filePath;
             }
             String[] filePathTokens = filePath.split("/");
             FileNode curFile = mMaster.mFileRoot;
+            // iterate through each directory in the path
             for (int i = 1; i < filePathTokens.length; ++i) {
                 String dir = filePathTokens[i];
                 boolean dirExists = false;
                 if(!curFile.mIsDirectory){
                     return null;
                 }
+                // if a match is found, set current file to the match
                 for (FileNode file : curFile.mChildren) {
                     if (file.mName.equalsIgnoreCase(dir)) {
                         curFile = file;
@@ -182,15 +190,19 @@ public class ServerMaster {
                     }
                 }
                 if (!dirExists) {
-                    //System.out.println("Invalid path");
                     return null;
                 }
             }
+            // return the successfully retrieved file node
             return curFile;
         }
         
-        public void CreateNewDir(String name, Message m ) {
-            // check that the first "/" is in the right place
+        /**
+         * Creates a new unique directory in given pathname 
+         * @param name path and name to create the new directory
+         */
+        public void CreateNewDir(String name) {
+            // check for the initial "/"
             int firstIndex = name.indexOf("/");
             if(firstIndex != 0){
                 name = "/" + name;
@@ -200,14 +212,14 @@ public class ServerMaster {
                 System.out.println("Directory already exists");
                 return;
             }
-            // check that the last "/" exists
+            // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
             if (lastIndex < 0) {
                 System.out.println("Invalid name");
                 return;
             }
             // default parent node to the root node
-            FileNode parentNode = GetAtPath("/");
+            FileNode parentNode = mMaster.mFileRoot;
             // set parent node to the parent directory
             if (lastIndex > 1) {
                 String parent = name.substring(0, lastIndex);
@@ -216,6 +228,11 @@ public class ServerMaster {
                     System.out.println("Parent directory does not exist");
                     return;
                 }
+            }
+            // check for locks in the parent node
+            if (parentNode.mReadLock || parentNode.mWriteLock) {
+                System.out.println("Parent directory is locked, cancelling command");
+                return;
             }
             // create new directory
             System.out.println("Creating new dir " + name);
@@ -227,9 +244,13 @@ public class ServerMaster {
             System.out.println("Finished creating new dir");
             return;
         }
-
+        
+        /**
+         * Creates the metadata for a new unique file at the given path
+         * @param name name of the new file
+         */
         public void CreateNewFile(String name) {
-            // check that the first "/" is in the right place
+            // check for the initial "/"
             int firstIndex = name.indexOf("/");
             if(firstIndex != 0){
                 name = "/" + name;
@@ -239,7 +260,7 @@ public class ServerMaster {
                 System.out.println("File already exists");
                 return;
             }
-            // check that the last "/" exists
+            // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
             if(lastIndex < 0){
                 System.out.println("Invalid name");
@@ -256,8 +277,14 @@ public class ServerMaster {
                     return;
                 }
             }
+            // verify if the parent node is a directory
             if(!parentNode.mIsDirectory){
                 System.out.println("Parent is not a directory");
+                return;
+            }
+            // check for locks in the parent node
+            if (parentNode.mReadLock || parentNode.mWriteLock) {
+                System.out.println("Parent directory is locked, cancelling command");
                 return;
             }
             // create new file
@@ -270,8 +297,12 @@ public class ServerMaster {
             return;
         }
         
+        /**
+         * Removes a given file from the parent's list of children
+         * @param filePath path to the file to remove
+         */
         public void DeleteFile(String filePath){
-            // check that the first "/" is in the right place
+            // check for the first "/"
             int firstIndex = filePath.indexOf("/");
             if(firstIndex != 0){
                 filePath = "/" + filePath;
@@ -282,11 +313,12 @@ public class ServerMaster {
                 System.out.println("File does not exist");
                 return;
             }
+            // verify that the file is a file
             if(file.mIsDirectory){
                 System.out.println("Deletion cancelled, " + filePath + " is a directory");
                 return;
             }
-            // check that the last "/" exists
+            // retrieve index of the last "/"
             int lastIndex = filePath.lastIndexOf("/");
             if(lastIndex < 0){
                 System.out.println("Invalid name");
@@ -303,11 +335,20 @@ public class ServerMaster {
                     return;
                 }
             }
+            // check for locks in the parent node
+            if (parentNode.mReadLock || parentNode.mWriteLock) {
+                System.out.println("Parent directory is locked, cancelling command");
+                return;
+            }
             // delete file
             System.out.println("Deleting file " + filePath);
             parentNode.mChildren.remove(file);
         }
         
+        /**
+         * Checks path and lists all children in the path
+         * @param filePath directory to search through
+         */
         public void ListFiles(String filePath) {
             System.out.println("Listing files for path: " + filePath);
             FileNode fileDir = GetAtPath(filePath);
@@ -321,6 +362,11 @@ public class ServerMaster {
             }
             if(fileDir.mChildren.isEmpty()){
                 System.out.println("No files in directory " + filePath);
+                return;
+            }
+            // check for locks in file directory
+            if (fileDir.mWriteLock) {
+                System.out.println("Directory is locked, cancelling command");
                 return;
             }
             for (FileNode file : fileDir.mChildren) {
