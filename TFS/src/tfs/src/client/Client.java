@@ -403,6 +403,7 @@ public class Client implements ClientInterface {
     public String[] GetListFile(String path) throws IOException {
         sentence = "GetFilesUnderPath " + path;
         SendMessage();
+        while(!ReceiveMessage());
         return mTempFilesUnderNode;
     }
 
