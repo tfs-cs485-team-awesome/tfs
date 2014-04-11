@@ -112,15 +112,15 @@ public class Client implements ClientInterface {
                 ConnectToServer();
 
                 while (true) {
-                    ReceiveMessage();
 
-                    //if (inFromUser.ready()) {
+                    if (System.in.available() > 0) {
                         sentence = inFromUser.readLine();
-                    //}
+                    }
                     if (false /*eventually add heartbeat message check in here*/) {
                         break;
                     }
                     SendMessage();
+                    ReceiveMessage();
                 }
                 serverSocket.close();
             } catch (IOException e) {
