@@ -324,17 +324,17 @@ public class ServerMaster {
         }
 
         public void RecurseGetFilesUnderPath(FileNode curNode, ArrayList<String> totalPaths, String parentPath, Message m) {
-            if (curNode.mIsDirectory) {
+            if (curNode.mIsDirectory) {/*
                 if (curNode.mName.contentEquals("/")) {
                     totalPaths.add("/");
                 } else{
                     if(parentPath.contentEquals("/")) {
                         totalPaths.add("/" + curNode.mName);
                     }
-                    else {
+                    else {*/
                         totalPaths.add(parentPath + "/" + curNode.mName);
-                    }
-                }
+                   // }
+                //}
 
                 for (FileNode fn : curNode.mChildren) {
                     RecurseGetFilesUnderPath(fn, totalPaths, parentPath + curNode.mName, m);
