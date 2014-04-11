@@ -70,6 +70,46 @@ public class TestCases {
         
     }
     
+    public void test2(String filePath, int numFiles) {
+        
+        try {
+            String[] paths = testClient.GetListFile(filePath);
+            List<String> toExplore = new ArrayList<>();
+            List<String> explored = new ArrayList<>();
+
+            for (String path : paths) {
+                toExplore.add(path);
+                //System.out.println("adding path " + path + " to toExplore");
+            }
+
+            while (toExplore != null) {
+                    List<String> moreToExplore = new ArrayList<>();
+                    for (String path : toExplore) {
+                            String [] more = testClient.GetListFile(path);
+                            for (String path2 : more) {
+                                    moreToExplore.add(path2);
+                            }
+                            explored.add(path);
+                    }
+                    toExplore.clear();
+                    toExplore = new ArrayList<String>(moreToExplore);
+                    
+            }
+
+            for (String path : explored) {
+                    for (int i = 1; i< numFiles; i++) {
+                            String fileName = path + "/File" + Integer.toString(i);
+                            testClient.CreateFile(fileName);
+                    }
+            }  
+        }
+        catch(IOException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+
+    }
+    
     public boolean test3(String pathname){
         try {
         testClient.DeleteFile(pathname);
