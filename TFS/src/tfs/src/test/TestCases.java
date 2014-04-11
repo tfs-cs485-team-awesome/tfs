@@ -29,8 +29,39 @@ public class TestCases {
             testClient.ConnectToServer();
             TestCases tc = new TestCases();
             
-            tc.test1(25);
-            tc.test2("/1/2", 5);
+            System.out.println("Type a test with valid parameters and press enter: ");
+            BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+            String input = "";
+            while(true){
+                input = br.readLine();
+                String[] argv = input.split(" ");
+                switch(argv[0]){
+                    case "test1":
+                        int param = Integer.parseInt(argv[1]);
+                        tc.test1(param);
+                        break;
+                    case "test2":
+                        param = Integer.parseInt(argv[2]);
+                        tc.test2(argv[1], param);
+                        break;
+                    case "test3":
+                        tc.test3(argv[1]);
+                        break;
+                    case "test4":
+                        tc.test4();
+                        break;
+                    case "test5":
+                        tc.test5(argv[1], argv[2]);
+                        break;
+                    case "test6":
+                        tc.test6();
+                        break;
+                    case "test7":
+                        tc.test7();
+                        break;
+                }
+            }
+            
         } catch (IOException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
@@ -122,6 +153,10 @@ public class TestCases {
         }
     }
     
+    public void test4() {
+        
+    }
+    
     public void test5(String pathname, String localpath) {
         try{
             byte[] data;
@@ -145,6 +180,13 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-
+    
+    public void test6() {
+        
+    }
+    
+    public void test7() {
+        
+    }
 
 }
