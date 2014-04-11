@@ -16,7 +16,7 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.ArrayDeque;
+import java.util.Stack;
 import tfs.util.Message;
 import tfs.util.MySocket;
 import tfs.util.FileNode;
@@ -27,7 +27,7 @@ import tfs.util.FileNode;
  */
 public class Client implements ClientInterface {
 
-    ArrayDeque<String> mCurrentPath;
+    Stack<String> mCurrentPath;
     String mServerIp;
     String sentence = "";
     int mServerPortNum;
@@ -51,7 +51,7 @@ public class Client implements ClientInterface {
 
         mServerIp = parts[0];
         mServerPortNum = Integer.valueOf(parts[1]);
-        mCurrentPath = new ArrayDeque<>();
+        mCurrentPath = new Stack<>();
         mCurrentPath.add("");
     }
 
@@ -177,6 +177,9 @@ public class Client implements ClientInterface {
             case "cd":
             case "dir":
                 return ParseTestPath(inStrings, toServer);
+            case "pwd":
+                System.out.println(GetCurrentPath());
+                return false;
             default:
                 System.out.println("Unknown command");
                 return false;
@@ -186,7 +189,7 @@ public class Client implements ClientInterface {
     public String GetCurrentPath() {
         String returnString = "";
         for(String s : mCurrentPath) {
-            returnString += "/" + s ;
+            returnString += s + "/";
         }
         return returnString;
     }
