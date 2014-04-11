@@ -493,13 +493,13 @@ public class ServerMaster {
                 BufferedInputStream br = new BufferedInputStream(Files.newInputStream(filePath, READ));
 
                 byte[] data = new byte[length];
-                if(br.read(data, offset, length) >= 0) {
+                if(br.read(data, offset, length) > 0) {
                     output.WriteString("ReadFileResponse");
                     output.WriteString(fileName);
                     output.WriteInt(data.length);
                     output.AppendData(data);
                 } else {
-                    output.WriteDebugStatement("Could not read length and offset from file");
+                    output.WriteDebugStatement("Failed to read given length from offset");
                 }
             } catch (IOException ie) {
                 output.WriteDebugStatement("Unable to read file");
