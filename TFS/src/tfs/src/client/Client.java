@@ -218,7 +218,7 @@ public class Client implements ClientInterface {
             case "LogicalFileCount":
                 return ParseLogicalFileCount(inStrings, toServer);
             default:
-                System.out.println("Unknown command" + inStrings[0]);
+                System.out.println("Unknown command " + inStrings[0]);
                 return false;
         }
     }
