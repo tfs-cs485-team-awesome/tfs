@@ -473,7 +473,7 @@ public class ServerMaster {
                 return;
             }
             // save file structure
-            SaveFileStructure(true, name);
+            SaveFileStructure(false, name);
             // create new file
             System.out.println("Creating new file " + name);
             m.WriteDebugStatement("Creating new file " + name);
