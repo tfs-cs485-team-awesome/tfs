@@ -236,14 +236,14 @@ public class Client implements ClientInterface {
             toServer.WriteInt(Integer.valueOf(inString[2]));
             sizeOfData = Integer.valueOf(inString[2]);
         }
-/*
+
         if (inString[3].matches("[/S]+/.[/S]+")) {
             //it's a file
             //handle this sometime
             try {
-                File f = new File(inString[3]);
-                byte[] data;
-                data = new byte[(int) f.length()];
+                Path filePath = Paths.get(inString[3]);
+                byte[] data = new byte[(int)Files.size(filePath)];
+                data = Files.readAllBytes(filePath);
 
             } catch (IOException ie) {
                 System.out.println("Unable to read file");
@@ -252,7 +252,7 @@ public class Client implements ClientInterface {
 
             System.out.println("Got a file");
         }
-        */
+        
         return true;
     }
 
