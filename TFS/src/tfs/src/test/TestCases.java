@@ -49,17 +49,22 @@ public class TestCases {
                         tc.test3(argv[1]);
                         break;
                     case "test4":
-                        tc.test4();
+                        tc.test4(argv[1], argv[2]);
                         break;
                     case "test5":
                         tc.test5(argv[1], argv[2]);
                         break;
                     case "test6":
-                        tc.test6();
+                        tc.test6(argv[1], argv[2]);
                         break;
                     case "test7":
-                        tc.test7();
+                        tc.test7(argv[1]);
                         break;
+                    default:
+                        System.out.println("Printing args: ");
+                        for(String s : argv) {
+                            System.out.println(s);
+                        }
                 }
             }
             
@@ -153,29 +158,14 @@ public class TestCases {
         }
     }
     
-    public void test4() {
-        
-    }
-    
-    public void test5(String pathname, String localpath) {
-        try{
-            byte[] data;
-            data = testClient.SeekFile(pathname);
-            if (data != null) {
-                try{
-                    testClient.WriteLocalFile(localpath, data);
-                }
-                catch(IOException e) {
-                    System.out.println("Test 5 failed due to exception " + e.getMessage());
-                    e.printStackTrace();
-                }
-                
-            }
-            else{
-                System.out.println("Test 5 failed because the file requested does not exist.");
-            }
+    public void test4(String localpath, String remotepath) {
+        try {
+            testClient.WriteFile(localpath, remotepath);
+            
+        } catch (IOException e) {
+            System.out.println("Test 4 failed due to exception " + e.getMessage());
+            e.printStackTrace();
         }
-
     }
 
     public void test5(String pathname, String localpath) {
@@ -187,12 +177,22 @@ public class TestCases {
         }
     }
     
-    public void test6() {
-        
+    public void test6(String localpath, String pathname) {
+        try {
+            testClient.AppendFile(localpath, pathname);
+        } catch (IOException e) {
+            System.out.println("Test 6 failed due to exception " + e.getMessage());
+            e.printStackTrace();
+        }
     }
     
-    public void test7() {
-        
+    public void test7(String pathname) {
+                try {
+            testClient.CountFiles(pathname);
+        } catch (IOException e) {
+            System.out.println("Test 6 failed due to exception " + e.getMessage());
+            e.printStackTrace();
+        }
     }
 
 }

@@ -82,17 +82,20 @@ public class Client implements ClientInterface {
         return false;
     }
 
-    public void SendMessage() throws IOException {
+    public boolean SendMessage() throws IOException {
         Message toServer = new Message();
 
         if (!sentence.isEmpty()) {
             String[] sentenceTokenized = sentence.split(" ");
             if (ParseUserInput(sentenceTokenized, toServer)) {
                 serverSocket.WriteMessage(toServer);
+                sentence = "";
+                return true;
             }
         }
 
         sentence = "";
+        return false;
     }
 
     public void ConnectToServer() throws IOException {
@@ -165,7 +168,7 @@ public class Client implements ClientInterface {
             case "append":
             case "appendtofile":
             case "AppendToFile":
-                return ParseWriteStringToFile(inStrings, toServer);
+                return ParseAppendFileToFile(inStrings, toServer);
             case "WriteFile":
             case "writetofile":
             case "write":
@@ -180,18 +183,30 @@ public class Client implements ClientInterface {
             case "pwd":
                 System.out.println(GetCurrentPath());
                 return false;
+            case "LogicalFileCount":
+                return ParseLogicalFileCount(inStrings, toServer);
             default:
-                System.out.println("Unknown command");
+                System.out.println("Unknown command" + inStrings[0]);
                 return false;
         }
     }
-    
+
     public String GetCurrentPath() {
         String returnString = "";
-        for(String s : mCurrentPath) {
+        for (String s : mCurrentPath) {
             returnString += s + "/";
         }
         return returnString;
+    }
+
+    public boolean ParseLogicalFileCount(String[] inString, Message toServer) {
+        if (inString.length != 2) {
+            System.out.println("Invalid number of parameters");
+            return false;
+        }
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[1]);
+        return true;
     }
 
     public boolean ParseTestPath(String[] inString, Message toServer) {
@@ -262,6 +277,34 @@ public class Client implements ClientInterface {
         return true;
     }
 
+    public boolean ParseAppendFileToFile(String[] inString, Message toServer) {
+        //cmd local remote
+        if (inString.length != 3) {
+            System.out.println("Invalid number of arguments");
+            return false;
+        }
+        toServer.WriteString(inString[0]);
+
+        toServer.WriteString(inString[2]);
+
+        //it's a file
+        //handle this sometime
+        try {
+            Path filePath = Paths.get(inString[1]);
+            byte[] data = Files.readAllBytes(filePath);
+            toServer.WriteInt(data.length);
+            toServer.AppendData(data);
+
+        } catch (IOException ie) {
+            System.out.println("Unable to read local file");
+            return false;
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
+        }
+
+        return true;
+    }
+
     public boolean ParseWriteToFile(String[] inString, Message toServer) {
         //cmd localfile remotefile
         if (inString.length != 3) {
@@ -281,8 +324,10 @@ public class Client implements ClientInterface {
             toServer.AppendData(data);
 
         } catch (IOException ie) {
-            System.out.println("Unable to read file");
+            System.out.println("Unable to read local file");
             return false;
+        } catch (Exception e) {
+            System.out.println(e.getMessage());
         }
 
         return true;
@@ -296,10 +341,16 @@ public class Client implements ClientInterface {
             return false;
         }
 
+        File tempFile = new File(inString[2]);
+        if (tempFile.exists()) {
+            System.out.println("Local file " + inString[2] + " already exists.  Aborting");
+            return false;
+        }
+
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
         toServer.WriteString(inString[2]);
-        
+
         return true;
     }
 
@@ -338,11 +389,10 @@ public class Client implements ClientInterface {
             return false;
         }
         toServer.WriteString(inString[0]);
-        
-        if(inString.length == 1) {
+
+        if (inString.length == 1) {
             toServer.WriteString(GetCurrentPath());
-        }
-        else {
+        } else {
             toServer.WriteString(inString[1]);
         }
         return true;
@@ -416,13 +466,21 @@ public class Client implements ClientInterface {
             case "TestPathResponse":
                 TestPathResponse(m);
                 break;
-
+            case "LogicalFileCountResponse":
+                LogicalFileCountResponse(m);
+                break;
         }
     }
-    
+
+    public void LogicalFileCountResponse(Message m) {
+        //numfiles filesize filedata...
+        int numFiles = m.ReadInt();
+        System.out.println("Number of files in haystack: " + numFiles);
+    }
+
     public void TestPathResponse(Message m) {
         int result = m.ReadInt();
-        if(result != 1) {
+        if (result != 1) {
             mCurrentPath.pop();
         }
     }
@@ -483,30 +541,34 @@ public class Client implements ClientInterface {
     @Override
     public void CreateFile(String fileName) throws IOException {
         sentence = "touch " + fileName;
-        SendMessage();
-        while (!ReceiveMessage());
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
 
     }
 
     @Override
     public void CreateDir(String dirName) throws IOException {
         sentence = "mkdir " + dirName;
-        SendMessage();
-        while (!ReceiveMessage());
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
     }
 
     @Override
     public void DeleteFile(String fileName) throws IOException {
         sentence = "rm " + fileName;
-        SendMessage();
-        while (!ReceiveMessage());
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
     }
 
     @Override
     public void ListFile(String path) throws IOException {
         sentence = "ls " + path;
-        SendMessage();
-        while (!ReceiveMessage());
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
     }
 
     @Override
@@ -519,24 +581,35 @@ public class Client implements ClientInterface {
 
     @Override
     public void ReadFile(String remotefilename, String localfilename) throws IOException {
-        sentence = "read " + remotefilename + localfilename;
-        SendMessage();
-        while(!ReceiveMessage());
+        sentence = "read " + remotefilename + " " + localfilename;
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
     }
 
     @Override
     public void WriteFile(String localfilename, String remotefilename) throws IOException {
-        sentence = "write " + localfilename + remotefilename;
-        SendMessage();
-        while (!ReceiveMessage());
+        sentence = "write " + localfilename + " " + remotefilename;
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
         //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public void AppendFile(String localfilename, String remotefilename) throws IOException {
+        sentence = "append " + localfilename + " " + remotefilename;
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
     }
 
     @Override
     public FileNode GetAtFilePath(String path) throws IOException {
         sentence = "GetNode " + path;
-        SendMessage();
-        while (!ReceiveMessage());
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
         return mTempFileNode;
     }
 
@@ -547,6 +620,15 @@ public class Client implements ClientInterface {
         out.write(data);
         out.close();
         System.out.println("Finished writing file");
+    }
+
+    @Override
+    public void CountFiles(String remotename) throws IOException {
+        sentence = "LogicalFileCount " + remotename;
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
+
     }
 
 }
