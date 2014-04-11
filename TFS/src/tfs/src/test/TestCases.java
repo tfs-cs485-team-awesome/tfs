@@ -9,6 +9,13 @@ package tfs.src.test;
 import tfs.src.client.Client;
 import tfs.util.FileNode;
 import java.io.*;
+import client.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
+import servermaster.*;
 import tfs.*;
 import java.util.*;
 
@@ -48,14 +55,12 @@ public class TestCases {
                 String curstr = q.remove().toString();
                 String temp = curstr + "/" + i;
                 q.add(temp);
-                System.out.print(temp);
                 testClient.CreateDir(temp);
 
                 i++;
                 if(dirs - i >= 0) {
                     temp = curstr + "/" + i;
                     q.add(temp);
-                    System.out.print(temp);
                     testClient.CreateDir(temp);
                 }
                 i++;
@@ -73,19 +78,11 @@ public class TestCases {
         return true;
         }
         catch(IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("Test 3 failed due to exception" + e.getMessage());
             e.printStackTrace();
             return false;
         }
     }
-    
-    /**
-     *  Store a file on the local machine in a target TFS file specified by 
-     * its path. 
-     */
-    public void testCase4 (String path, String file) {
-        //CreateNewFile(path);
-        //ReadFile(file);
-        //WriteFile(path);
-    }
+
+
 }
