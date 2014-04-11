@@ -102,6 +102,7 @@ public class ServerMaster {
         }
 
         public void run() {
+            LoadFileStructure();
             while (true) {
                 try {
                     synchronized (mClients) {
@@ -129,6 +130,111 @@ public class ServerMaster {
             }
         }
 
+         public void LoadFileStructure(){
+            File file = new File("SYSTEM_LOG.txt");
+            // create file if it does not exist
+            if(!file.exists())
+            {
+                try {
+                    file.createNewFile();
+                    return;
+                } catch(IOException ie) {
+                    System.out.println("Unable to create TFS structure file");
+                }
+            }
+
+            // create an input stream to read the data from the file
+            try {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                String line;
+                while ((line = br.readLine()) != null){
+                    Message m = new Message();
+                    String[] pair = line.split(" ");
+                    if(pair[0].equals("DIRECTORY")){
+                        CreateNewSetupDir(pair[1]);
+                    }
+                    else {
+                        CreateNewSetupFile(pair[1]);
+                    }
+                }
+                br.close();
+            } catch(IOException ie) {
+                System.out.println("Unable to read TFS structure file");
+            }
+        }
+        
+        public void SaveFileStructure(Boolean isDirectory, String name){
+            FileNode file = GetAtPath(name);
+            if(file != null){
+                return;
+            }
+            try {
+                PrintWriter pw = new PrintWriter(new FileWriter("SYSTEM_LOG.txt", true));
+                String newline;
+                if(isDirectory){
+                    newline = "DIRECTORY " + name + "\n";
+                }
+                else {
+                    newline = "FILE " + name + "\n";
+                }
+                pw.write(newline);
+                pw.close();
+            } catch(IOException ie) {
+                System.out.println("Unable to write to TFS structure file");
+            }
+        }
+        
+        public void CreateNewSetupDir(String name) {
+            // retrieve index of the last "/"
+            int lastIndex = name.lastIndexOf("/");
+            if (lastIndex < 0) {
+                return;
+            }
+            // default parent node to the root node
+            FileNode parentNode = mMaster.mFileRoot;
+            // set parent node to the parent directory
+            if (lastIndex > 1) {
+                String parent = name.substring(0, lastIndex);
+                parentNode = GetAtPath(parent);
+                if (parentNode == null) {
+                    return;
+                }
+            }
+            // check for locks in the parent node
+            if (parentNode.mReadLock || parentNode.mWriteLock) {
+                return;
+            }
+            FileNode newDir = new FileNode(false);
+            newDir.mIsDirectory = true;
+            newDir.mName = name.substring(lastIndex + 1, name.length());
+            parentNode.mChildren.add(newDir);
+            return;
+        }
+        
+        public void CreateNewSetupFile(String name) {
+            // retrieve index of the last "/"
+            int lastIndex = name.lastIndexOf("/");
+            if(lastIndex < 0){
+                return;
+            }
+            // default parent node to the root node
+            FileNode parentNode = GetAtPath("/");
+            // set parent node to the parent directory
+            if(lastIndex > 1){
+                String parent = name.substring(0, lastIndex);
+                parentNode = GetAtPath(parent);
+                if (parentNode == null) {
+                    return;
+                }
+            }
+            // create new file
+            FileNode newFile = new FileNode(true);
+            newFile.mIsDirectory = false;
+            newFile.mName = name.substring(lastIndex+1,name.length());
+            parentNode.mChildren.add(newFile);
+            return;
+        }
+        
         /**
          * Parses the client's input into a command and a parameter
          * @param input should be in the format "CommandName Parameters"
