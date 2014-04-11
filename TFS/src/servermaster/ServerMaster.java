@@ -7,9 +7,11 @@ package servermaster;
 
 import java.io.*;
 import java.net.*;
+import static java.nio.file.StandardOpenOption.*;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import tfs.Message;
 import tfs.MySocket;
@@ -165,8 +167,13 @@ public class ServerMaster {
                 case "WriteFile":
                 case "writefile":
                 case "write":
-                    WriteFile(m.ReadString(), m.ReadData(m.ReadInt()), outputToClient);
+                {
+                    String name = m.ReadString();
+                    int lengthToRead = m.ReadInt();
+                    byte[] data = m.ReadData(lengthToRead);
+                    WriteFile(name, data, outputToClient);
                     break;
+                }
             }
             System.out.println("Finished client input");
             outputToClient.WriteDebugStatement("Finished client input");
@@ -330,6 +337,26 @@ public class ServerMaster {
         }
         
         public void WriteFile(String fileName, byte[] data, Message output){
+            
+            FileNode file = GetAtPath(fileName);
+            if(file == null) {
+                System.out.println("File does not exist");
+                output.WriteDebugStatement("File does not exist");
+                return;
+            }
+            
+            try {
+                Path filePath = Paths.get(fileName);
+                OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
+                out.write(data);
+                out.close();
+                System.out.println("Finished writing file");
+                output.WriteDebugStatement("Finished writing file");
+                
+            } catch ( IOException ioe) {
+                System.out.println(ioe.getMessage());
+                ioe.printStackTrace();
+            }
             
         }
         
