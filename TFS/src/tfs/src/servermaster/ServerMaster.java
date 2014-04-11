@@ -311,7 +311,7 @@ public class ServerMaster {
                 case "ReadFile":
                 case "readfile":
                 case "read":
-                    ReadFile(m.ReadString(), outputToClient);
+                    ReadFile(m.ReadString(), m.ReadString(), outputToClient);
                     break;
                 case "WriteFile":
                 case "writefile":
@@ -579,7 +579,7 @@ public class ServerMaster {
             }
         }
         
-        public void ReadFile(String fileName, Message output) {
+        public void ReadFile(String fileName, String clientfileName, Message output) {
             FileNode fileNode = GetAtPath(fileName);
             if (fileNode == null) {
                 System.out.println("File does not exist");
@@ -591,7 +591,7 @@ public class ServerMaster {
                 Path filePath = Paths.get(fileName);
                 byte[] data = Files.readAllBytes(filePath);
                 output.WriteString("ReadFileResponse");
-                output.WriteString(fileName);
+                output.WriteString(clientfileName);
                 output.WriteInt(data.length);
                 output.AppendData(data);
             } catch (IOException ioe) {
@@ -603,12 +603,12 @@ public class ServerMaster {
         public void WriteFile(String fileName, byte[] data, Message output) {
 
             FileNode file = GetAtPath(fileName);
-            if (file == null) {
-                System.out.println("File does not exist" + fileName);
-                output.WriteDebugStatement("File does not exist");
+            if (file != null) {
+                System.out.println("File already exists: " + fileName);
+                output.WriteDebugStatement("File already exists: " + fileName);
                 return;
             }
-
+            CreateNewFile(fileName, output);
             try {
                 fileName = fileName.replaceAll("/", ".");
                 Path filePath = Paths.get(fileName);

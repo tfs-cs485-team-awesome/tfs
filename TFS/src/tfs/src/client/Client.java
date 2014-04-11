@@ -263,19 +263,19 @@ public class Client implements ClientInterface {
     }
 
     public boolean ParseWriteToFile(String[] inString, Message toServer) {
-        //cmd filename len data
+        //cmd localfile remotefile
         if (inString.length != 3) {
             System.out.println("Invalid number of arguments");
             return false;
         }
         toServer.WriteString(inString[0]);
 
-        toServer.WriteString(inString[1]);
+        toServer.WriteString(inString[2]);
 
         //it's a file
         //handle this sometime
         try {
-            Path filePath = Paths.get(inString[2]);
+            Path filePath = Paths.get(inString[1]);
             byte[] data = Files.readAllBytes(filePath);
             toServer.WriteInt(data.length);
             toServer.AppendData(data);
@@ -289,15 +289,17 @@ public class Client implements ClientInterface {
     }
 
     public boolean ParseReadFile(String[] inString, Message toServer) {
-        //cmd filename
+        //cmd remotefilename localfilename
 
-        if (inString.length != 2) {
+        if (inString.length != 3) {
             System.out.println("Invalid number of arguments");
             return false;
         }
 
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
+        toServer.WriteString(inString[2]);
+        
         return true;
     }
 
@@ -516,14 +518,15 @@ public class Client implements ClientInterface {
     }
 
     @Override
-    public byte[] SeekFile(String fileName) throws IOException {
-        System.out.println("Not supported yet");
-        return new byte[0];
+    public void ReadFile(String remotefilename, String localfilename) throws IOException {
+        sentence = "read " + remotefilename + localfilename;
+        SendMessage();
+        while(!ReceiveMessage());
     }
 
     @Override
-    public void WriteFile(String fileName) throws IOException {
-        sentence = "write " + fileName;
+    public void WriteFile(String localfilename, String remotefilename) throws IOException {
+        sentence = "write " + localfilename + remotefilename;
         SendMessage();
         while (!ReceiveMessage());
         //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
