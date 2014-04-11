@@ -99,6 +99,7 @@ public class ServerMaster {
         }
 
         public void run() {
+            LoadFileStructure();
             while (true) {
                 try {
                     synchronized (mClients) {
@@ -126,6 +127,60 @@ public class ServerMaster {
             }
         }
 
+        public void LoadFileStructure(){
+            File file = new File("SYSTEM_LOG.txt");
+            // create file if it does not exist
+            if(!file.exists())
+            {
+                try {
+                    file.createNewFile();
+                    return;
+                } catch(IOException ie) {
+                    System.out.println("Unable to create TFS structure file");
+                }
+            }
+
+            // create an input stream to read the data from the file
+            try {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                String line;
+                while ((line = br.readLine()) != null){
+                    Message m = new Message();
+                    String[] pair = line.split(" ");
+                    if(pair[0].equals("DIRECTORY")){
+                        CreateNewSetupDir(pair[1]);
+                    }
+                    else {
+                        CreateNewSetupFile(pair[1]);
+                    }
+                }
+                br.close();
+            } catch(IOException ie) {
+                System.out.println("Unable to read TFS structure file");
+            }
+        }
+        
+        public void SaveFileStructure(Boolean isDirectory, String name){
+            FileNode file = GetAtPath(name);
+            if(file != null){
+                return;
+            }
+            try {
+                PrintWriter pw = new PrintWriter(new FileWriter("SYSTEM_LOG.txt", true));
+                String newline;
+                if(isDirectory){
+                    newline = "DIRECTORY " + name + "\n";
+                }
+                else {
+                    newline = "FILE " + name + "\n";
+                }
+                pw.write(newline);
+                pw.close();
+            } catch(IOException ie) {
+                System.out.println("Unable to write to TFS structure file");
+            }
+        }
+        
         /**
          * Parses the client's input into a command and a parameter
          * @param input should be in the format "CommandName Parameters"
@@ -249,6 +304,8 @@ public class ServerMaster {
                 m.WriteDebugStatement("Parent directory is locked, cancelling command");
                 return;
             }
+            // save to file structure
+            SaveFileStructure(true, name);
             // create new directory
             System.out.println("Creating new dir " + name);
             m.WriteDebugStatement("Creating new dir " + name);
@@ -258,6 +315,33 @@ public class ServerMaster {
             parentNode.mChildren.add(newDir);
             System.out.println("Finished creating new dir");
             m.WriteDebugStatement("Finished creating new dir");
+            return;
+        }
+        
+        public void CreateNewSetupDir(String name) {
+            // retrieve index of the last "/"
+            int lastIndex = name.lastIndexOf("/");
+            if (lastIndex < 0) {
+                return;
+            }
+            // default parent node to the root node
+            FileNode parentNode = mMaster.mFileRoot;
+            // set parent node to the parent directory
+            if (lastIndex > 1) {
+                String parent = name.substring(0, lastIndex);
+                parentNode = GetAtPath(parent);
+                if (parentNode == null) {
+                    return;
+                }
+            }
+            // check for locks in the parent node
+            if (parentNode.mReadLock || parentNode.mWriteLock) {
+                return;
+            }
+            FileNode newDir = new FileNode(false);
+            newDir.mIsDirectory = true;
+            newDir.mName = name.substring(lastIndex + 1, name.length());
+            parentNode.mChildren.add(newDir);
             return;
         }
         
@@ -308,6 +392,8 @@ public class ServerMaster {
                 m.WriteDebugStatement("Parent directory is locked, cancelling command");
                 return;
             }
+            // save to file structure
+            SaveFileStructure(false, name);
             // create new file
             System.out.println("Creating new file " + name);
             m.WriteDebugStatement("Creating new file " + name);
@@ -315,18 +401,68 @@ public class ServerMaster {
             newFile.mIsDirectory = false;
             newFile.mName = name.substring(lastIndex+1,name.length());
             parentNode.mChildren.add(newFile);
-            System.out.println("Finished creating new dir");
-            m.WriteDebugStatement("Finished creating new dir");
+            System.out.println("Finished creating new file");
+            m.WriteDebugStatement("Finished creating new file");
+            return;
+        }
+        
+        public void CreateNewSetupFile(String name) {
+            // retrieve index of the last "/"
+            int lastIndex = name.lastIndexOf("/");
+            if(lastIndex < 0){
+                return;
+            }
+            // default parent node to the root node
+            FileNode parentNode = GetAtPath("/");
+            // set parent node to the parent directory
+            if(lastIndex > 1){
+                String parent = name.substring(0, lastIndex);
+                parentNode = GetAtPath(parent);
+                if (parentNode == null) {
+                    return;
+                }
+            }
+            // create new file
+            FileNode newFile = new FileNode(true);
+            newFile.mIsDirectory = false;
+            newFile.mName = name.substring(lastIndex+1,name.length());
+            parentNode.mChildren.add(newFile);
             return;
         }
                 
         public void ReadFile(String fileName, int offset, int length, Message output){
-            FileNode file = GetAtPath(fileName);
-            if (file == null) {
-                System.out.println("File does not exist");
+            FileNode fileNode = GetAtPath(fileName);
+            // verify that file node exists
+            if (fileNode == null) {
+                output.WriteDebugStatement("File does not exist");
                 return;
             }
-            
+            // verify that the file is not locked
+            if (fileNode.mWriteLock) {
+                output.WriteDebugStatement("File is currently in use, cancelling read");
+                return;
+            }
+            // verify that the file exists and is not a directory
+            File file = new File(fileName);
+            if(!file.exists() || file.isDirectory()){
+                output.WriteDebugStatement("File does not exist");
+            }
+            // create an input stream to read the data from the file
+            try {
+                InputStream is = new FileInputStream(fileName);
+                byte[] data = null;
+                if(is.read(data, offset, length) >= 0){
+                    // return data on success
+                    output.WriteString("ReadFileResponse");
+                    output.WriteInt(data.length);
+                    output.AppendData(data);
+                }
+                else {
+                    output.WriteDebugStatement("Invalid length to read from offset " + offset);
+                }
+            } catch(IOException ie) {
+                output.WriteDebugStatement("Unable to read file");
+            }
         }
         
         public void WriteFile(String fileName, byte[] data, Message output){
