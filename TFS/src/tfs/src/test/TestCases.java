@@ -61,15 +61,12 @@ public class TestCases {
                         tc.test7(argv[1]);
                         break;
                     default:
-                        System.out.println("Printing args: ");
-                        for(String s : argv) {
-                            System.out.println(s);
-                        }
+                        System.out.println("Invalid test case, please re-enter");
+                        break;
                 }
             }
-        } catch (IOException e) {
-            System.out.println(e.getMessage());
-            e.printStackTrace();
+        } catch (Exception e) {
+            System.out.println("Unrecognized command, please re-enter");
         }
     }
 
