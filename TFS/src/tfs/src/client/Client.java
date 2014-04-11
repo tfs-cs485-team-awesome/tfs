@@ -170,7 +170,7 @@ public class Client implements ClientInterface {
             case "ReadFile":
             case "readfile":
             case "read":
-
+                ParseReadFile(inStrings, toServer);
                 break;
             case "WriteFile":
             case "writetofile":
@@ -190,20 +190,21 @@ public class Client implements ClientInterface {
         }
     }
 
-    public void ParseGetNode(String[] inString, Message toServer) {
+    public boolean ParseGetNode(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
-            return;
+            return false;
         }
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
+        return true;
     }
 
-    public void ParseWriteFile(String[] inString, Message toServer) {
+    public boolean ParseWriteFile(String[] inString, Message toServer) {
         //cmd filename len data
         if (inString.length != 4) {
             System.out.println("Invalid number of arguments");
-            return;
+            return false;
         }
         toServer.WriteString(inString[0]);
 
@@ -212,7 +213,7 @@ public class Client implements ClientInterface {
         int sizeOfData = 0;
         if (!inString[2].matches("[0-9]+")) {
             System.out.println("Invalid argument type");
-            toServer.WriteInt(0); //must fill up space to prevent read errors on server
+            return false;
         } else {
             toServer.WriteInt(Integer.valueOf(inString[2]));
             sizeOfData = Integer.valueOf(inString[2]);
@@ -223,52 +224,83 @@ public class Client implements ClientInterface {
             //handle this sometime
             System.out.println("Got a file");
         } else {
-            //doesn't work yet
-            /*for (int i = 0; i <) {
-                
-             }*/
+            //write input as bytes
+            byte[] dataToWrite = new byte[1];
+            for (int i = 0; i < sizeOfData; ++i) {
+                dataToWrite[0] = (byte) inString[3].charAt(i);
+                toServer.AppendData(dataToWrite);
+            }
         }
-
+        return true;
     }
 
-    public void ParseReadFile(String[] inString, Message toServer) {
+    public boolean ParseReadFile(String[] inString, Message toServer) {
         //cmd filename offset len
+        
+        if (inString.length != 4) {
+            System.out.println("Invalid number of arguments");
+            return false;
+        }
+        toServer.WriteString(inString[0]);
+
+        toServer.WriteString(inString[1]);
+
+        int sizeOfData = 0;
+        if (!inString[2].matches("[0-9]+")) {
+            System.out.println("Invalid argument type");
+            return false;
+        } else {
+            toServer.WriteInt(Integer.valueOf(inString[2]));
+            sizeOfData = Integer.valueOf(inString[2]);
+        }
+
+        if (!inString[3].matches("[0-9]+")) {
+            System.out.println("Invalid argument type");
+            return false;
+        } else {
+            toServer.WriteInt(Integer.valueOf(inString[3]));
+        }
+        return true;
     }
 
-    public void ParseListFiles(String[] inString, Message toServer) {
+    public boolean ParseListFiles(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
-            return;
+            return false;
         }
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
+        return true;
     }
 
-    public void ParseDeleteFile(String[] inString, Message toServer) {
+    public boolean ParseDeleteFile(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
-            return;
+            return false;
         }
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
+        return true;
     }
 
-    public void ParseCreateNewFile(String[] inString, Message toServer) {
+    public boolean ParseCreateNewFile(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
-            return;
+            return false;
         }
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
+        return true;
     }
 
-    public void ParseCreateNewDir(String[] inString, Message toServer) {
+    public boolean ParseCreateNewDir(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
-            return;
+            return false;
         }
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
+        return true;
     }
 
     public Boolean ValidMessage(Message m) {
