@@ -25,7 +25,7 @@ public class TestCases {
     static Client testClient;
 
     public static void main(String[] args) {
-        testClient = new Client("localhost:6789");
+        testClient = new Client(args[0]);
         try {
             testClient.ConnectToServer();
             TestCases tc = new TestCases();
