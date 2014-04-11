@@ -7,6 +7,7 @@ package tfs.src.servermaster;
 
 import java.io.*;
 import java.net.*;
+import java.nio.ByteBuffer;
 import static java.nio.file.StandardOpenOption.*;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -182,16 +183,15 @@ public class ServerMaster {
             }
         }
 
-        public void DeleteFromFileStructure(Boolean isDirectory, String name){
+        public void DeleteFromFileStructure(Boolean isDirectory, String name) {
             String lineToDelete;
-            if(isDirectory){
+            if (isDirectory) {
                 lineToDelete = "DIRECTORY " + name;
-            }
-            else {
+            } else {
                 lineToDelete = "FILE " + name;
             }
             File file = new File("SYSTEM_LOG.txt");
-            if(!file.exists() || !file.isFile()){
+            if (!file.exists() || !file.isFile()) {
                 System.out.println("Unable to delete from TFS file structure");
                 return;
             }
@@ -199,7 +199,7 @@ public class ServerMaster {
                 File tempFile = new File(file.getAbsolutePath() + ".tmp");
                 BufferedReader br = new BufferedReader(new FileReader(file));
                 PrintWriter pw = new PrintWriter(new FileWriter(tempFile));
-                
+
                 String line = null;
                 while ((line = br.readLine()) != null) {
                     if (!line.trim().equals(lineToDelete)) {
@@ -213,13 +213,14 @@ public class ServerMaster {
                     System.out.println("Could not delete file");
                     return;
                 }
-                if (!tempFile.renameTo(file))
+                if (!tempFile.renameTo(file)) {
                     System.out.println("Could not rename file");
-            } catch(IOException ie) {
+                }
+            } catch (IOException ie) {
                 System.out.println("Failed to delete file from the TFS file structure");
             }
         }
-        
+
         public void CreateNewSetupDir(String name) {
             // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
@@ -311,22 +312,26 @@ public class ServerMaster {
                 case "ReadFile":
                 case "readfile":
                 case "read":
-                    ReadFile(m.ReadString(), outputToClient);
+                    ReadFile(m.ReadString(), m.ReadString(), outputToClient);
                     break;
                 case "WriteFile":
                 case "writefile":
-                case "write":
-                case "Append":
-                case "append":
-                case "appendtofile":
-                case "AppendToFile":
-                {
+                case "write": {
                     String name = m.ReadString();
                     int lengthToRead = m.ReadInt();
                     byte[] data = m.ReadData(lengthToRead);
                     WriteFile(name, data, outputToClient);
                     break;
                 }
+                case "Append":
+                case "append":
+                case "appendtofile":
+                case "AppendToFile":
+                    String name = m.ReadString();
+                    int lengthToRead = m.ReadInt();
+                    byte[] data = m.ReadData(lengthToRead);
+                    AppendFile(name, data, outputToClient);
+                    break;
                 case "GetNode": {
                     String path = m.ReadString();
                     System.out.println("Getting node " + path);
@@ -348,27 +353,28 @@ public class ServerMaster {
                 case "dir":
                     GetValidityOfPath(m.ReadString(), outputToClient);
                     break;
+                case "LogicalFileCount":
+                    LogicalFileCount(m.ReadString(), outputToClient);
+                    break;
                     
+
             }
             System.out.println("Finished client input");
             outputToClient.WriteDebugStatement("Finished client input");
             return outputToClient;
         }
 
-        
         public void GetValidityOfPath(String path, Message m) {
             FileNode nodeAtPath = GetAtPath(path);
             m.WriteString("TestPathResponse");
-            if(nodeAtPath == null) {
+            if (nodeAtPath == null) {
                 m.WriteInt(0);
                 m.WriteDebugStatement("Path " + path + " does not exist");
-            }
-            else {
+            } else {
                 m.WriteInt(1);
             }
         }
-        
-        
+
         /**
          * Retrieves and returns a file node specified in the parameter
          *
@@ -385,7 +391,7 @@ public class ServerMaster {
             ArrayList<String> totalPath = new ArrayList<>();
             m.WriteString("GetFilesUnderPathResponse");
             totalPath.add(path);
-            for(FileNode fn : topNode.mChildren) {
+            for (FileNode fn : topNode.mChildren) {
                 RecurseGetFilesUnderPath(fn, totalPath, path, m);
             }
             m.WriteInt(totalPath.size());
@@ -566,7 +572,7 @@ public class ServerMaster {
                 BufferedInputStream br = new BufferedInputStream(Files.newInputStream(filePath, READ));
 
                 byte[] data = new byte[length];
-                if(br.read(data, offset, length) > 0) {
+                if (br.read(data, offset, length) > 0) {
                     output.WriteString("SeekFileResponse");
                     output.WriteString(fileName);
                     output.WriteInt(data.length);
@@ -578,8 +584,8 @@ public class ServerMaster {
                 output.WriteDebugStatement("Unable to read file");
             }
         }
-        
-        public void ReadFile(String fileName, Message output) {
+
+        public void ReadFile(String fileName, String clientfileName, Message output) {
             FileNode fileNode = GetAtPath(fileName);
             if (fileNode == null) {
                 System.out.println("File does not exist");
@@ -591,7 +597,7 @@ public class ServerMaster {
                 Path filePath = Paths.get(fileName);
                 byte[] data = Files.readAllBytes(filePath);
                 output.WriteString("ReadFileResponse");
-                output.WriteString(fileName);
+                output.WriteString(clientfileName);
                 output.WriteInt(data.length);
                 output.AppendData(data);
             } catch (IOException ioe) {
@@ -599,24 +605,101 @@ public class ServerMaster {
                 output.WriteDebugStatement(ioe.getMessage());
             }
         }
+        
+        public void LogicalFileCount(String fileName, Message output) {
+            FileNode file = GetAtPath(fileName);
+            if (file == null) {
+                output.WriteDebugStatement("File " + fileName + " does not exist");
+                return;
+            }
+            try {
+                fileName = fileName.replaceAll("/", ".");
+                Path filePath = Paths.get(fileName);
+                File f = new File(fileName);
+                if (f.exists()) {
+                    BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+                    int numFiles = 0;
+                    int skippedBytes = 0;
+                    byte[] intByte = new byte[4];
+                    in.mark(0);
+                    while (in.read() != -1) {
+                        in.reset(); //move back to the point before the byte
+                        in.read(intByte);
+                        skippedBytes += 4;
+                        int bytesToSkip = ByteBuffer.wrap(intByte).getInt();
+                        in.skip(bytesToSkip);
+                        skippedBytes += bytesToSkip;
+                        in.mark(skippedBytes);//mark the position before the next int
+                        numFiles++;
+                    }
+                    output.WriteString("LogicalFileCountResponse");
+                    output.WriteInt(numFiles);
+                } else {
+                    output.WriteDebugStatement("File " + fileName + " does not exist");
+                }
+            } catch (IOException ioe) {
+                System.out.println(ioe.getMessage());
+                ioe.printStackTrace();
+            }
+        }
+
+        public void AppendFile(String fileName, byte[] data, Message output) {
+            FileNode file = GetAtPath(fileName);
+            if (file == null) {
+                CreateNewFile(fileName, output);
+            }
+
+            try {
+                fileName = fileName.replaceAll("/", ".");
+                Path filePath = Paths.get(fileName);
+                File f = new File(fileName);
+                if (f.exists()) {
+                    BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+                    int skippedBytes = 0;
+                    byte[] intByte = new byte[4];
+                    in.mark(0);
+                    while (in.read() != -1) {
+                        in.reset(); //move back to the point before the byte
+                        in.read(intByte);
+                        skippedBytes += 4;
+                        int bytesToSkip = ByteBuffer.wrap(intByte).getInt();
+                        in.skip(bytesToSkip);
+                        skippedBytes += bytesToSkip;
+                        in.mark(skippedBytes);//mark the position before the next int
+                    }
+                    System.out.println("Skipped: " + skippedBytes + "bytes");
+                }
+                OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
+                out.write(ByteBuffer.allocate(4).putInt(data.length).array());
+                out.write(data);
+                out.close();
+                System.out.println("Finished writing file");
+                output.WriteDebugStatement("Finished writing file");
+
+            } catch (IOException ioe) {
+                System.out.println(ioe.getMessage());
+                ioe.printStackTrace();
+            }
+
+        }
 
         public void WriteFile(String fileName, byte[] data, Message output) {
 
             FileNode file = GetAtPath(fileName);
-            if (file == null) {
-                System.out.println("File does not exist" + fileName);
-                output.WriteDebugStatement("File does not exist");
+            if (file != null) {
+                System.out.println("File already exists: " + fileName);
+                output.WriteDebugStatement("File already exists: " + fileName);
                 return;
             }
-
+            CreateNewFile(fileName, output);
             try {
                 fileName = fileName.replaceAll("/", ".");
                 Path filePath = Paths.get(fileName);
                 OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
                 out.write(data);
                 out.close();
-                System.out.println("Finished writing file");
-                output.WriteDebugStatement("Finished writing file");
+                System.out.println("Finished appending to file");
+                output.WriteDebugStatement("Finished appending to file");
 
             } catch (IOException ioe) {
                 System.out.println(ioe.getMessage());
