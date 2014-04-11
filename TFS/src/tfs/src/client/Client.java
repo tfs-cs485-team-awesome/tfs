@@ -113,9 +113,9 @@ public class Client implements ClientInterface {
 
                 while (true) {
 
-                    if (inFromUser.ready()) {
+                    //if (inFromUser.ready()) {
                         sentence = inFromUser.readLine();
-                    }
+                    //}
                     if (false /*eventually add heartbeat message check in here*/) {
                         break;
                     }
