@@ -54,7 +54,7 @@ public class TFS {
     }
 
     public static void start(String[] args) {
-        switch (args[0]) {
+        switch (args[0].toLowerCase()) {
             case "Server":
             case "server":
                 ServerMaster server;
@@ -88,7 +88,9 @@ public class TFS {
             case "test":
             case "TEST":
             case "Test":
-                TestCases.main(args);
+                String[] shiftedArgs = new String[1];
+                shiftedArgs[0] = args[1];
+                TestCases.main(shiftedArgs);
             default:
                 System.out.println("Invalid type");
                 break;
