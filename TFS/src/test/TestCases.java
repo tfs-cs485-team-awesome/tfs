@@ -75,18 +75,5 @@ public class TestCases {
         }
     }
     
-    /**
-     *  Store a file on the local machine in a target TFS file specified by 
-     * its path. 
-     */
-    public void testCase4 (String path, String file) {
-        try {
-            testClient.CreateFile(file);
-            testClient.ReadFile(path);
-            testClient.WriteFile(file);
-        } catch (IOException e) {
-            System.out.println(e.getMessage());
-            e.printStackTrace();
-        }
-    }
+
 }
