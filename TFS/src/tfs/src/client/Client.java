@@ -29,6 +29,7 @@ public class Client implements ClientInterface {
     MySocket serverSocket;
 
     //TEMP CODE
+    String[] mTempFilesUnderNode;
     FileNode mTempFileNode;
     //END TEMP CODE
 
@@ -74,21 +75,6 @@ public class Client implements ClientInterface {
         return false;
     }
 
-    public String[] DebugReceiveMessage() throws IOException {
-        ArrayList<String> debugStatements = new ArrayList<String>();
-
-        if (serverSocket.hasData()) {
-            Message fromServer = new Message(serverSocket.ReadBytes());
-
-            while (!fromServer.isFinished()) {
-                //message has data
-                //ParseInput(fromServer);
-                debugStatements.add(fromServer.ReadString());
-            }
-        }
-        return (String[]) debugStatements.toArray();
-
-    }
 
     public void SendMessage() throws IOException {
         Message toServer = new Message();
@@ -331,18 +317,20 @@ public class Client implements ClientInterface {
                 break;
             }
             case "GetFilesUnderPathResponse": {
-                GetFilesUnderNodeResponse(m);
+                mTempFilesUnderNode = GetFilesUnderNodeResponse(m);
                 break;
             }
 
         }
     }
 
-    public void GetFilesUnderNodeResponse(Message m) {
+    public String[] GetFilesUnderNodeResponse(Message m) {
         int numStrings = m.ReadInt();
+        String[] returnStrings = new String[numStrings];
         for(int i = 0; i < numStrings; ++i) {
-            System.out.println(m.ReadString());
+            returnStrings[i] = m.ReadString();
         }
+        return returnStrings;
     }
     
     public void ContactChunkServer(Message m) {
@@ -415,7 +403,8 @@ public class Client implements ClientInterface {
     public String[] GetListFile(String path) throws IOException {
         sentence = "GetFilesUnderPath " + path;
         SendMessage();
-        return DebugReceiveMessage();
+        while(!ReceiveMessage());
+        return mTempFilesUnderNode;
     }
 
     @Override
