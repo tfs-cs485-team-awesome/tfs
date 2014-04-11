@@ -9,13 +9,11 @@ package tfs.src.test;
 import tfs.src.client.Client;
 import tfs.util.FileNode;
 import java.io.*;
-import client.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
-import servermaster.*;
 import tfs.*;
 import java.util.*;
 
