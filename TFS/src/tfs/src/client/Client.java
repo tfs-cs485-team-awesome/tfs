@@ -112,6 +112,7 @@ public class Client implements ClientInterface {
                 ConnectToServer();
 
                 while (true) {
+                    ReceiveMessage();
 
                     //if (inFromUser.ready()) {
                         sentence = inFromUser.readLine();
@@ -120,7 +121,6 @@ public class Client implements ClientInterface {
                         break;
                     }
                     SendMessage();
-                    ReceiveMessage();
                 }
                 serverSocket.close();
             } catch (IOException e) {
