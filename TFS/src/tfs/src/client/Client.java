@@ -14,11 +14,9 @@ import java.nio.file.StandardOpenOption;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
-import java.util.Deque;
 import tfs.util.Message;
 import tfs.util.MySocket;
 import tfs.util.FileNode;
@@ -29,30 +27,6 @@ import tfs.util.FileNode;
  */
 public class Client implements ClientInterface {
 
-    private class ClientInput extends Thread {
-
-        Client mClient;
-
-        public ClientInput(Client inClient) {
-            mClient = inClient;
-        }
-
-        public void run() {
-            BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
-            while (true) {
-                try {
-                    String input = inFromUser.readLine();
-                    synchronized (mClient.mInput) {
-                        mInput.addFirst(input);
-                    }
-                } catch (IOException ioe) {
-                    System.out.println(ioe.getMessage());
-                }
-            }
-        }
-    }
-
-    Deque<String> mInput;
     Stack<String> mCurrentPath;
     String mServerIp;
     String sentence = "";
@@ -79,10 +53,6 @@ public class Client implements ClientInterface {
         mServerPortNum = Integer.valueOf(parts[1]);
         mCurrentPath = new Stack<>();
         mCurrentPath.add("");
-        mInput = new ArrayDeque<String>();
-        
-        ClientInput inputThread = new ClientInput(this);
-        inputThread.start();
     }
 
     public void InitConnectionWithServer(MySocket inSocket) {
@@ -143,10 +113,8 @@ public class Client implements ClientInterface {
 
                 while (true) {
 
-                    synchronized (mInput) {
-                        if (!mInput.isEmpty()) {
-                            sentence = mInput.removeLast();
-                        }
+                    if (System.in.available() > 0) {
+                        sentence = inFromUser.readLine();
                     }
                     if (false /*eventually add heartbeat message check in here*/) {
                         break;
@@ -218,7 +186,7 @@ public class Client implements ClientInterface {
             case "LogicalFileCount":
                 return ParseLogicalFileCount(inStrings, toServer);
             default:
-                System.out.println("Unknown command " + inStrings[0]);
+                System.out.println("Unknown command" + inStrings[0]);
                 return false;
         }
     }
@@ -572,9 +540,7 @@ public class Client implements ClientInterface {
 
     @Override
     public void CreateFile(String fileName) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("touch " + fileName);
-        }
+        sentence = "touch " + fileName;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -583,9 +549,7 @@ public class Client implements ClientInterface {
 
     @Override
     public void CreateDir(String dirName) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("mkdir " + dirName);
-        }
+        sentence = "mkdir " + dirName;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -593,9 +557,7 @@ public class Client implements ClientInterface {
 
     @Override
     public void DeleteFile(String fileName) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("rm " + fileName);
-        }
+        sentence = "rm " + fileName;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -603,9 +565,7 @@ public class Client implements ClientInterface {
 
     @Override
     public void ListFile(String path) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("ls " + path);
-        }
+        sentence = "ls " + path;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -613,9 +573,7 @@ public class Client implements ClientInterface {
 
     @Override
     public String[] GetListFile(String path) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("GetFilesUnderPath " + path);
-        }
+        sentence = "GetFilesUnderPath " + path;
         SendMessage();
         while (!ReceiveMessage());
         return mTempFilesUnderNode;
@@ -623,9 +581,7 @@ public class Client implements ClientInterface {
 
     @Override
     public void ReadFile(String remotefilename, String localfilename) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("read " + remotefilename + " " + localfilename);
-        }
+        sentence = "read " + remotefilename + " " + localfilename;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -633,9 +589,7 @@ public class Client implements ClientInterface {
 
     @Override
     public void WriteFile(String localfilename, String remotefilename) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("write " + localfilename + " " + remotefilename);
-        }
+        sentence = "write " + localfilename + " " + remotefilename;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -644,9 +598,7 @@ public class Client implements ClientInterface {
 
     @Override
     public void AppendFile(String localfilename, String remotefilename) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("append " + localfilename + " " + remotefilename);
-        }
+        sentence = "append " + localfilename + " " + remotefilename;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -654,9 +606,7 @@ public class Client implements ClientInterface {
 
     @Override
     public FileNode GetAtFilePath(String path) throws IOException {
-        synchronized(mInput) {
-            mInput.addFirst("GetNode " + path);
-        }
+        sentence = "GetNode " + path;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -674,9 +624,7 @@ public class Client implements ClientInterface {
 
     @Override
     public void CountFiles(String remotename) throws IOException {
-        synchronized(mInput) {
-        mInput.addFirst("LogicalFileCount " + remotename);
-        }
+        sentence = "LogicalFileCount " + remotename;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
