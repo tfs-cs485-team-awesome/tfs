@@ -572,7 +572,9 @@ public class Client implements ClientInterface {
 
     @Override
     public void CreateFile(String fileName) throws IOException {
-        sentence = "touch " + fileName;
+        synchronized(mInput) {
+        mInput.addFirst("touch " + fileName);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -581,7 +583,9 @@ public class Client implements ClientInterface {
 
     @Override
     public void CreateDir(String dirName) throws IOException {
-        sentence = "mkdir " + dirName;
+        synchronized(mInput) {
+        mInput.addFirst("mkdir " + dirName);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -589,7 +593,9 @@ public class Client implements ClientInterface {
 
     @Override
     public void DeleteFile(String fileName) throws IOException {
-        sentence = "rm " + fileName;
+        synchronized(mInput) {
+        mInput.addFirst("rm " + fileName);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -597,7 +603,9 @@ public class Client implements ClientInterface {
 
     @Override
     public void ListFile(String path) throws IOException {
-        sentence = "ls " + path;
+        synchronized(mInput) {
+        mInput.addFirst("ls " + path);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -605,7 +613,9 @@ public class Client implements ClientInterface {
 
     @Override
     public String[] GetListFile(String path) throws IOException {
-        sentence = "GetFilesUnderPath " + path;
+        synchronized(mInput) {
+        mInput.addFirst("GetFilesUnderPath " + path);
+        }
         SendMessage();
         while (!ReceiveMessage());
         return mTempFilesUnderNode;
@@ -613,7 +623,9 @@ public class Client implements ClientInterface {
 
     @Override
     public void ReadFile(String remotefilename, String localfilename) throws IOException {
-        sentence = "read " + remotefilename + " " + localfilename;
+        synchronized(mInput) {
+        mInput.addFirst("read " + remotefilename + " " + localfilename);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -621,7 +633,9 @@ public class Client implements ClientInterface {
 
     @Override
     public void WriteFile(String localfilename, String remotefilename) throws IOException {
-        sentence = "write " + localfilename + " " + remotefilename;
+        synchronized(mInput) {
+        mInput.addFirst("write " + localfilename + " " + remotefilename);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -630,7 +644,9 @@ public class Client implements ClientInterface {
 
     @Override
     public void AppendFile(String localfilename, String remotefilename) throws IOException {
-        sentence = "append " + localfilename + " " + remotefilename;
+        synchronized(mInput) {
+        mInput.addFirst("append " + localfilename + " " + remotefilename);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -638,7 +654,9 @@ public class Client implements ClientInterface {
 
     @Override
     public FileNode GetAtFilePath(String path) throws IOException {
-        sentence = "GetNode " + path;
+        synchronized(mInput) {
+            mInput.addFirst("GetNode " + path);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -656,7 +674,9 @@ public class Client implements ClientInterface {
 
     @Override
     public void CountFiles(String remotename) throws IOException {
-        sentence = "LogicalFileCount " + remotename;
+        synchronized(mInput) {
+        mInput.addFirst("LogicalFileCount " + remotename);
+        }
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
