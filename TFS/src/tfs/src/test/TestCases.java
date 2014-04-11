@@ -81,6 +81,30 @@ public class TestCases {
             return false;
         }
     }
+    
+    public void test5(String pathname, String localpath) {
+        try{
+            byte[] data;
+            data = testClient.ReadFile(pathname);
+            if (data != null) {
+                try{
+                    testClient.WriteLocalFile(localpath, data);
+                }
+                catch(IOException e) {
+                    System.out.println("Test 5 failed due to exception " + e.getMessage());
+                    e.printStackTrace();
+                }
+                
+            }
+            else{
+                System.out.println("Test 5 failed because the file requested does not exist.");
+            }
+        }
+        catch(IOException e) {
+            System.out.println("Test 5 failed due to exception " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
 
 }
