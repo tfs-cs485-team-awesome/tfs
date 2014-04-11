@@ -3,7 +3,7 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package servermaster;
+package tfs.src.servermaster;
 
 import java.io.*;
 import java.net.*;
@@ -13,8 +13,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import tfs.Message;
-import tfs.MySocket;
+import tfs.util.Message;
+import tfs.util.FileNode;
+import tfs.util.MySocket;
 
 /**
  *
@@ -174,6 +175,18 @@ public class ServerMaster {
                     WriteFile(name, data, outputToClient);
                     break;
                 }
+                case "GetNode":
+                    String path = m.ReadString();
+                    System.out.println("Getting node " + path);
+                    outputToClient.WriteDebugStatement("Getting node " + path);
+                    FileNode toClient = GetAtPath(path);
+                    try {
+                        outputToClient.WriteString("GetNodeResponse");
+                        toClient.WriteToMessage(outputToClient);
+                    } catch (IOException ioe) {
+                        System.out.println(ioe.getMessage());
+                        System.out.println("Problem serializing node");
+                    }
             }
             System.out.println("Finished client input");
             outputToClient.WriteDebugStatement("Finished client input");

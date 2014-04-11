@@ -4,11 +4,11 @@
  * and open the template in the editor.
  */
 
-package test;
+package tfs.src.test;
 
+import tfs.src.client.Client;
+import tfs.util.FileNode;
 import java.io.*;
-import client.*;
-import servermaster.*;
 import tfs.*;
 import java.util.*;
 
@@ -26,6 +26,8 @@ public class TestCases {
             testClient.CreateFile("something/file.txt");
             testClient.CreateFile("sldkfjsdlf/doesntexistyet.txt");
             testClient.ListFile("something");
+            FileNode testNode = testClient.GetAtFilePath("something");
+            int i =0;
         } catch (IOException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();

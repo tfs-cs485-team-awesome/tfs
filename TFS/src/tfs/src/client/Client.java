@@ -3,13 +3,19 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package client;
+package tfs.src.client;
 
 import java.net.*;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import java.util.ArrayList;
-import tfs.Message;
-import tfs.MySocket;
+import tfs.util.Message;
+import tfs.util.MySocket;
+import tfs.util.FileNode;
 
 /**
  *
@@ -21,6 +27,10 @@ public class Client implements ClientInterface {
     String sentence = "";
     int mServerPortNum;
     MySocket serverSocket;
+
+    //TEMP CODE
+    FileNode mTempFileNode;
+    //END TEMP CODE
 
     /**
      *
@@ -85,9 +95,7 @@ public class Client implements ClientInterface {
 
         if (!sentence.isEmpty()) {
             String[] sentenceTokenized = sentence.split(" ");
-            for (String s : sentenceTokenized) {
-                toServer.WriteString(s);
-            }
+            ParseUserInput(sentenceTokenized, toServer);
             if (ValidMessage(toServer)) {
                 toServer.ResetReadHead();
                 serverSocket.WriteMessage(toServer);
@@ -108,23 +116,18 @@ public class Client implements ClientInterface {
         System.out.println("Starting client on ip: " + mServerIp + " and port: " + mServerPortNum);
         while (true) {
             try {
-                serverSocket = new MySocket(mServerIp, mServerPortNum);
-
-                InitConnectionWithServer(serverSocket);
+                ConnectToServer();
 
                 while (true) {
 
                     if (inFromUser.ready()) {
                         sentence = inFromUser.readLine();
                     }
-
                     if (false /*eventually add heartbeat message check in here*/) {
                         break;
                     }
-
                     SendMessage();
                     ReceiveMessage();
-
                 }
                 serverSocket.close();
             } catch (IOException e) {
@@ -139,6 +142,133 @@ public class Client implements ClientInterface {
                 }
             }
         }
+    }
+
+    public void ParseUserInput(String[] inStrings, Message toServer) {
+        String command = inStrings[0];
+        switch (command) {
+            case "CreateNewDirectory":
+            case "createnewdirectory":
+            case "mkdir":
+                ParseCreateNewDir(inStrings, toServer);
+                break;
+            case "CreateNewFile":
+            case "createnewfile":
+            case "touch":
+                ParseCreateNewFile(inStrings, toServer);
+                break;
+            case "DeleteFile":
+            case "deletefile":
+            case "rm":
+                ParseDeleteFile(inStrings, toServer);
+                break;
+            case "ListFiles":
+            case "listfiles":
+            case "ls":
+                ParseListFiles(inStrings, toServer);
+                break;
+            case "ReadFile":
+            case "readfile":
+            case "read":
+
+                break;
+            case "WriteFile":
+            case "writetofile":
+            case "write":
+                ParseWriteFile(inStrings, toServer);
+                break;
+            case "GetNode":
+                ParseGetNode(inStrings, toServer);
+                break;
+            default:
+                System.out.println("Unknown command");
+                break;
+        }
+
+        for (String s : inStrings) {
+            toServer.WriteString(s);
+        }
+    }
+
+    public void ParseGetNode(String[] inString, Message toServer) {
+        if (inString.length != 2) {
+            System.out.println("Invalid number of arguments");
+            return;
+        }
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[1]);
+    }
+
+    public void ParseWriteFile(String[] inString, Message toServer) {
+        //cmd filename len data
+        if (inString.length != 4) {
+            System.out.println("Invalid number of arguments");
+            return;
+        }
+        toServer.WriteString(inString[0]);
+
+        toServer.WriteString(inString[1]);
+
+        int sizeOfData = 0;
+        if (!inString[2].matches("[0-9]+")) {
+            System.out.println("Invalid argument type");
+            toServer.WriteInt(0); //must fill up space to prevent read errors on server
+        } else {
+            toServer.WriteInt(Integer.valueOf(inString[2]));
+            sizeOfData = Integer.valueOf(inString[2]);
+        }
+
+        if (inString[3].matches("[/S]+/.[/S]+")) {
+            //it's a file
+            //handle this sometime
+            System.out.println("Got a file");
+        } else {
+            //doesn't work yet
+            /*for (int i = 0; i <) {
+                
+             }*/
+        }
+
+    }
+
+    public void ParseReadFile(String[] inString, Message toServer) {
+        //cmd filename offset len
+    }
+
+    public void ParseListFiles(String[] inString, Message toServer) {
+        if (inString.length != 2) {
+            System.out.println("Invalid number of arguments");
+            return;
+        }
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[1]);
+    }
+
+    public void ParseDeleteFile(String[] inString, Message toServer) {
+        if (inString.length != 2) {
+            System.out.println("Invalid number of arguments");
+            return;
+        }
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[1]);
+    }
+
+    public void ParseCreateNewFile(String[] inString, Message toServer) {
+        if (inString.length != 2) {
+            System.out.println("Invalid number of arguments");
+            return;
+        }
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[1]);
+    }
+
+    public void ParseCreateNewDir(String[] inString, Message toServer) {
+        if (inString.length != 2) {
+            System.out.println("Invalid number of arguments");
+            return;
+        }
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[1]);
     }
 
     public Boolean ValidMessage(Message m) {
@@ -170,7 +300,7 @@ public class Client implements ClientInterface {
                 return ValidMessageData(m);
         }
         System.out.println("Not a recognized command");
-        return false;
+        return true;
     }
 
     public Boolean ValidMessageString(Message m) {
@@ -232,6 +362,16 @@ public class Client implements ClientInterface {
             case "ReadFileResponse":
                 ReadFileResponse(m);
                 break;
+            case "GetNodeResponse": {                
+                try {
+                    FileNode readNode = new FileNode(false);
+                    readNode.ReadFromMessage(m);
+                } catch (IOException ioe) {
+                    System.out.println("Problem deserializing file node");
+                    System.out.println(ioe.getMessage());
+                }
+            }
+
         }
     }
 
@@ -273,7 +413,7 @@ public class Client implements ClientInterface {
     public void CreateFile(String fileName) throws IOException {
         sentence = "touch " + fileName;
         SendMessage();
-        while(!ReceiveMessage());
+        while (!ReceiveMessage());
 
     }
 
@@ -281,21 +421,21 @@ public class Client implements ClientInterface {
     public void CreateDir(String dirName) throws IOException {
         sentence = "mkdir " + dirName;
         SendMessage();
-        while(!ReceiveMessage());
+        while (!ReceiveMessage());
     }
 
     @Override
     public void DeleteFile(String fileName) throws IOException {
         sentence = "rm " + fileName;
         SendMessage();
-        while(!ReceiveMessage());
+        while (!ReceiveMessage());
     }
 
     @Override
     public void ListFile(String path) throws IOException {
         sentence = "ls " + path;
         SendMessage();
-        while(!ReceiveMessage());
+        while (!ReceiveMessage());
     }
 
     @Override
@@ -306,8 +446,9 @@ public class Client implements ClientInterface {
     }
 
     @Override
-    public void ReadFile(String fileName) throws IOException {
+    public byte[] ReadFile(String fileName) throws IOException {
         System.out.println("Not supported yet");
+        return new byte[0];
     }
 
     @Override
@@ -315,4 +456,22 @@ public class Client implements ClientInterface {
         System.out.println("Not supported yet");
         //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
+
+    @Override
+    public FileNode GetAtFilePath(String path) throws IOException {
+        sentence = "GetNode " + path;
+        SendMessage();
+        while (!ReceiveMessage());
+        return mTempFileNode;
+    }
+
+    @Override
+    public void WriteLocalFile(String fileName, byte[] data) throws IOException {
+        Path filePath = Paths.get(fileName);
+        OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
+        out.write(data);
+        out.close();
+        System.out.println("Finished writing file");
+    }
+
 }

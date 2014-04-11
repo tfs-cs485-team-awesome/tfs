@@ -3,14 +3,14 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-package chunkserver;
+package tfs.src.chunkserver;
 
 import java.io.*;
 import java.net.*;
 import java.util.HashMap;
 import java.util.ArrayList;
-import tfs.Message;
-import tfs.MySocket;
+import tfs.util.Message;
+import tfs.util.MySocket;
 
 /**
  *

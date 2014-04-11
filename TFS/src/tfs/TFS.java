@@ -7,9 +7,9 @@ package tfs;
 
 import java.io.*;
 import java.net.*;
-import servermaster.ServerMaster;
-import client.Client;
-import chunkserver.ChunkServer;
+import tfs.src.servermaster.ServerMaster;
+import tfs.src.client.Client;
+import tfs.src.chunkserver.ChunkServer;
 
 /**
  *
