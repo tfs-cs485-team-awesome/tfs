@@ -162,6 +162,7 @@ public class ServerMaster {
         }
 
         public void SaveFileStructure(Boolean isDirectory, String name) {
+            System.out.println("Saving file structure");
             FileNode file = GetAtPath(name);
             if (file != null) {
                 return;
@@ -489,6 +490,7 @@ public class ServerMaster {
                 return;
             }
             try {
+                fileName = fileName.replaceAll("/", ".");
                 Path filePath = Paths.get(fileName);
                 BufferedInputStream br = new BufferedInputStream(Files.newInputStream(filePath, READ));
 
@@ -502,6 +504,7 @@ public class ServerMaster {
                     output.WriteDebugStatement("Failed to read given length from offset");
                 }
             } catch (IOException ie) {
+                output.WriteDebugStatement("Unable to read file");
                 output.WriteDebugStatement("Unable to read file");
             }
         }
