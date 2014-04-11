@@ -447,10 +447,26 @@ public class ServerMaster {
         }
                 
         public void ReadFile(String fileName, int offset, int length, Message output){
-            FileNode file = GetAtPath(fileName);
-            if (file == null) {
+            FileNode fileNode = GetAtPath(fileName);
+            if (fileNode == null) {
                 System.out.println("File does not exist");
+                output.WriteDebugStatement("File does not exist");
                 return;
+            }
+            
+            try {
+                InputStream is =  new FileInputStream(fileName);
+                byte[] data = null;
+                if(is.read(data, offset, length) >= 0) {
+                    output.WriteString("ReadFileResponse");
+                    output.WriteString(fileName);
+                    output.WriteInt(data.length);
+                    output.AppendData(data);
+                } else {
+                    output.WriteDebugStatement("Could not read length and offset from file");
+                }
+            } catch (IOException ie) {
+                output.WriteDebugStatement("Unable to read file");
             }
             
         }
