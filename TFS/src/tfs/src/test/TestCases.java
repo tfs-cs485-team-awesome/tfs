@@ -27,12 +27,10 @@ public class TestCases {
         testClient = new Client("localhost:6789");
         try {
             testClient.ConnectToServer();
-            testClient.CreateDir("something");
-            testClient.CreateFile("something/file.txt");
-            testClient.CreateFile("sldkfjsdlf/doesntexistyet.txt");
-            testClient.ListFile("something");
-            FileNode testNode = testClient.GetAtFilePath("something");
-            int i =0;
+            TestCases tc = new TestCases();
+            
+            tc.test1(25);
+            tc.test2("/1/2", 5);
         } catch (IOException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
@@ -74,6 +72,7 @@ public class TestCases {
         
         try {
             String[] paths = testClient.GetListFile(filePath);
+            /*
             List<String> toExplore = new ArrayList<>();
             List<String> explored = new ArrayList<>();
 
@@ -95,9 +94,10 @@ public class TestCases {
                     toExplore = new ArrayList<String>(moreToExplore);
                     
             }
-
-            for (String path : explored) {
-                    for (int i = 1; i< numFiles; i++) {
+*/
+            for (String path : paths) {
+                testClient.ListFile(path);
+                    for (int i = 1; i<= numFiles; i++) {
                             String fileName = path + "/File" + Integer.toString(i);
                             testClient.CreateFile(fileName);
                     }

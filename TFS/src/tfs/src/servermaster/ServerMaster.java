@@ -316,7 +316,10 @@ public class ServerMaster {
             }
             ArrayList<String> totalPath = new ArrayList<>();
             m.WriteString("GetFilesUnderPathResponse");
-            RecurseGetFilesUnderPath(topNode, totalPath, "", m);
+            totalPath.add(path);
+            for(FileNode fn : topNode.mChildren) {
+                RecurseGetFilesUnderPath(fn, totalPath, path, m);
+            }
             m.WriteInt(totalPath.size());
             for (String s : totalPath) {
                 m.WriteString(s);
@@ -324,20 +327,11 @@ public class ServerMaster {
         }
 
         public void RecurseGetFilesUnderPath(FileNode curNode, ArrayList<String> totalPaths, String parentPath, Message m) {
-            if (curNode.mIsDirectory) {/*
-                if (curNode.mName.contentEquals("/")) {
-                    totalPaths.add("/");
-                } else{
-                    if(parentPath.contentEquals("/")) {
-                        totalPaths.add("/" + curNode.mName);
-                    }
-                    else {*/
-                        totalPaths.add(parentPath + "/" + curNode.mName);
-                   // }
-                //}
-
+            if (curNode.mIsDirectory) {
+                totalPaths.add(parentPath + "/" + curNode.mName);
+                System.out.println(parentPath + "/" + curNode.mName);
                 for (FileNode fn : curNode.mChildren) {
-                    RecurseGetFilesUnderPath(fn, totalPaths, parentPath + curNode.mName, m);
+                    RecurseGetFilesUnderPath(fn, totalPaths, parentPath + "/" + curNode.mName, m);
                 }
             }
 
@@ -486,19 +480,19 @@ public class ServerMaster {
             m.WriteDebugStatement("Finished creating new dir");
             return;
         }
-                
-        public void ReadFile(String fileName, int offset, int length, Message output){
+
+        public void ReadFile(String fileName, int offset, int length, Message output) {
             FileNode fileNode = GetAtPath(fileName);
             if (fileNode == null) {
                 System.out.println("File does not exist");
                 output.WriteDebugStatement("File does not exist");
                 return;
             }
-            
+
             try {
-                InputStream is =  new FileInputStream(fileName);
+                InputStream is = new FileInputStream(fileName);
                 byte[] data = null;
-                if(is.read(data, offset, length) >= 0) {
+                if (is.read(data, offset, length) >= 0) {
                     output.WriteString("ReadFileResponse");
                     output.WriteString(fileName);
                     output.WriteInt(data.length);
@@ -509,19 +503,20 @@ public class ServerMaster {
             } catch (IOException ie) {
                 output.WriteDebugStatement("Unable to read file");
             }
-            
+
         }
 
         public void WriteFile(String fileName, byte[] data, Message output) {
 
             FileNode file = GetAtPath(fileName);
             if (file == null) {
-                System.out.println("File does not exist");
+                System.out.println("File does not exist" + fileName);
                 output.WriteDebugStatement("File does not exist");
                 return;
             }
 
             try {
+                fileName = fileName.replaceAll("/", ".");
                 Path filePath = Paths.get(fileName);
                 OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
                 out.write(data);
