@@ -107,7 +107,7 @@ public class ServerMaster {
                 try {
                     synchronized (mClients) {
                         for (MySocket clientSocket : mMaster.mClients) {
-                            
+
                             if (clientSocket.hasData()) {
                                 Message messageReceived = new Message(clientSocket.ReadBytes());
                                 Message messageSending = ParseClientInput(messageReceived);
@@ -122,7 +122,7 @@ public class ServerMaster {
                     }
                     this.sleep(100);
                 } catch (Exception e) {
-                    
+
                     System.out.println(e.getMessage());
                     e.printStackTrace();
                 }
@@ -130,15 +130,14 @@ public class ServerMaster {
             }
         }
 
-         public void LoadFileStructure(){
+        public void LoadFileStructure() {
             File file = new File("SYSTEM_LOG.txt");
             // create file if it does not exist
-            if(!file.exists())
-            {
+            if (!file.exists()) {
                 try {
                     file.createNewFile();
                     return;
-                } catch(IOException ie) {
+                } catch (IOException ie) {
                     System.out.println("Unable to create TFS structure file");
                 }
             }
@@ -147,43 +146,41 @@ public class ServerMaster {
             try {
                 BufferedReader br = new BufferedReader(new FileReader(file));
                 String line;
-                while ((line = br.readLine()) != null){
+                while ((line = br.readLine()) != null) {
                     Message m = new Message();
                     String[] pair = line.split(" ");
-                    if(pair[0].equals("DIRECTORY")){
+                    if (pair[0].equals("DIRECTORY")) {
                         CreateNewSetupDir(pair[1]);
-                    }
-                    else {
+                    } else {
                         CreateNewSetupFile(pair[1]);
                     }
                 }
                 br.close();
-            } catch(IOException ie) {
+            } catch (IOException ie) {
                 System.out.println("Unable to read TFS structure file");
             }
         }
-        
-        public void SaveFileStructure(Boolean isDirectory, String name){
+
+        public void SaveFileStructure(Boolean isDirectory, String name) {
             FileNode file = GetAtPath(name);
-            if(file != null){
+            if (file != null) {
                 return;
             }
             try {
                 PrintWriter pw = new PrintWriter(new FileWriter("SYSTEM_LOG.txt", true));
                 String newline;
-                if(isDirectory){
+                if (isDirectory) {
                     newline = "DIRECTORY " + name + "\n";
-                }
-                else {
+                } else {
                     newline = "FILE " + name + "\n";
                 }
                 pw.write(newline);
                 pw.close();
-            } catch(IOException ie) {
+            } catch (IOException ie) {
                 System.out.println("Unable to write to TFS structure file");
             }
         }
-        
+
         public void CreateNewSetupDir(String name) {
             // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
@@ -210,17 +207,17 @@ public class ServerMaster {
             parentNode.mChildren.add(newDir);
             return;
         }
-        
+
         public void CreateNewSetupFile(String name) {
             // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
-            if(lastIndex < 0){
+            if (lastIndex < 0) {
                 return;
             }
             // default parent node to the root node
             FileNode parentNode = GetAtPath("/");
             // set parent node to the parent directory
-            if(lastIndex > 1){
+            if (lastIndex > 1) {
                 String parent = name.substring(0, lastIndex);
                 parentNode = GetAtPath(parent);
                 if (parentNode == null) {
@@ -230,13 +227,14 @@ public class ServerMaster {
             // create new file
             FileNode newFile = new FileNode(true);
             newFile.mIsDirectory = false;
-            newFile.mName = name.substring(lastIndex+1,name.length());
+            newFile.mName = name.substring(lastIndex + 1, name.length());
             parentNode.mChildren.add(newFile);
             return;
         }
-        
+
         /**
          * Parses the client's input into a command and a parameter
+         *
          * @param input should be in the format "CommandName Parameters"
          */
         public Message ParseClientInput(Message m) {
@@ -273,16 +271,14 @@ public class ServerMaster {
                     break;
                 case "WriteFile":
                 case "writefile":
-                case "write":
-                {
+                case "write": {
                     String name = m.ReadString();
                     int lengthToRead = m.ReadInt();
                     byte[] data = m.ReadData(lengthToRead);
                     WriteFile(name, data, outputToClient);
                     break;
                 }
-                case "GetNode":
-                {
+                case "GetNode": {
                     String path = m.ReadString();
                     System.out.println("Getting node " + path);
                     outputToClient.WriteDebugStatement("Getting node " + path);
@@ -294,7 +290,11 @@ public class ServerMaster {
                         System.out.println(ioe.getMessage());
                         System.out.println("Problem serializing node");
                     }
+                    break;
                 }
+                case "GetFilesUnderPath":
+                    GetFilesUnderPath(m.ReadString(), outputToClient);
+                    break;
             }
             System.out.println("Finished client input");
             outputToClient.WriteDebugStatement("Finished client input");
@@ -303,12 +303,49 @@ public class ServerMaster {
 
         /**
          * Retrieves and returns a file node specified in the parameter
+         *
          * @param filePath path to file
          * @return file node
          */
+        public void GetFilesUnderPath(String path, Message m) {
+            FileNode topNode = GetAtPath(path);
+            if (topNode == null) {
+                System.out.println("Path does not exist");
+                m.WriteDebugStatement("Path does not exist");
+                return;
+            }
+            ArrayList<String> totalPath = new ArrayList<>();
+            m.WriteString("GetFilesUnderPathResponse");
+            RecurseGetFilesUnderPath(topNode, totalPath, "", m);
+            m.WriteInt(totalPath.size());
+            for (String s : totalPath) {
+                m.WriteString(s);
+            }
+        }
+
+        public void RecurseGetFilesUnderPath(FileNode curNode, ArrayList<String> totalPaths, String parentPath, Message m) {
+            if (curNode.mIsDirectory) {
+                if (curNode.mName.contentEquals("/")) {
+                    totalPaths.add("/");
+                } else{
+                    if(parentPath.contentEquals("/")) {
+                        totalPaths.add("/" + curNode.mName);
+                    }
+                    else {
+                        totalPaths.add(parentPath + "/" + curNode.mName);
+                    }
+                }
+
+                for (FileNode fn : curNode.mChildren) {
+                    RecurseGetFilesUnderPath(fn, totalPaths, parentPath + curNode.mName, m);
+                }
+            }
+
+        }
+
         public FileNode GetAtPath(String filePath) {
             // check for the initial "/"
-            if(filePath.indexOf("/") != 0){
+            if (filePath.indexOf("/") != 0) {
                 filePath = "/" + filePath;
             }
             String[] filePathTokens = filePath.split("/");
@@ -317,7 +354,7 @@ public class ServerMaster {
             for (int i = 1; i < filePathTokens.length; ++i) {
                 String dir = filePathTokens[i];
                 boolean dirExists = false;
-                if(!curFile.mIsDirectory){
+                if (!curFile.mIsDirectory) {
                     return null;
                 }
                 // if a match is found, set current file to the match
@@ -335,15 +372,16 @@ public class ServerMaster {
             // return the successfully retrieved file node
             return curFile;
         }
-        
+
         /**
-         * Creates a new unique directory in given pathname 
+         * Creates a new unique directory in given pathname
+         *
          * @param name path and name to create the new directory
          */
         public void CreateNewDir(String name, Message m) {
             // check for the initial "/"
             int firstIndex = name.indexOf("/");
-            if(firstIndex != 0){
+            if (firstIndex != 0) {
                 name = "/" + name;
             }
             // check if the given directory already exists
@@ -388,26 +426,27 @@ public class ServerMaster {
             m.WriteDebugStatement("Finished creating new dir");
             return;
         }
-        
+
         /**
          * Creates the metadata for a new unique file at the given path
+         *
          * @param name name of the new file
          */
         public void CreateNewFile(String name, Message m) {
             // check for the initial "/"
             int firstIndex = name.indexOf("/");
-            if(firstIndex != 0){
+            if (firstIndex != 0) {
                 name = "/" + name;
             }
             // check if the given file already exists
-            if(GetAtPath(name) != null){
+            if (GetAtPath(name) != null) {
                 System.out.println("File already exists");
                 m.WriteDebugStatement("File already exists");
                 return;
             }
             // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
-            if(lastIndex < 0){
+            if (lastIndex < 0) {
                 System.out.println("Invalid name");
                 m.WriteDebugStatement("Invalid name");
                 return;
@@ -415,7 +454,7 @@ public class ServerMaster {
             // default parent node to the root node
             FileNode parentNode = GetAtPath("/");
             // set parent node to the parent directory
-            if(lastIndex > 1){
+            if (lastIndex > 1) {
                 String parent = name.substring(0, lastIndex);
                 parentNode = GetAtPath(parent);
                 if (parentNode == null) {
@@ -425,7 +464,7 @@ public class ServerMaster {
                 }
             }
             // verify if the parent node is a directory
-            if(!parentNode.mIsDirectory){
+            if (!parentNode.mIsDirectory) {
                 System.out.println("Parent is not a directory");
                 m.WriteDebugStatement("Parent is not a directory");
                 return;
@@ -441,31 +480,31 @@ public class ServerMaster {
             m.WriteDebugStatement("Creating new file " + name);
             FileNode newFile = new FileNode(true);
             newFile.mIsDirectory = false;
-            newFile.mName = name.substring(lastIndex+1,name.length());
+            newFile.mName = name.substring(lastIndex + 1, name.length());
             parentNode.mChildren.add(newFile);
             System.out.println("Finished creating new dir");
             m.WriteDebugStatement("Finished creating new dir");
             return;
         }
-                
-        public void ReadFile(String fileName, int offset, int length, Message output){
+
+        public void ReadFile(String fileName, int offset, int length, Message output) {
             FileNode file = GetAtPath(fileName);
             if (file == null) {
                 System.out.println("File does not exist");
                 return;
             }
-            
+
         }
-        
-        public void WriteFile(String fileName, byte[] data, Message output){
-            
+
+        public void WriteFile(String fileName, byte[] data, Message output) {
+
             FileNode file = GetAtPath(fileName);
-            if(file == null) {
+            if (file == null) {
                 System.out.println("File does not exist");
                 output.WriteDebugStatement("File does not exist");
                 return;
             }
-            
+
             try {
                 Path filePath = Paths.get(fileName);
                 OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
@@ -473,40 +512,41 @@ public class ServerMaster {
                 out.close();
                 System.out.println("Finished writing file");
                 output.WriteDebugStatement("Finished writing file");
-                
-            } catch ( IOException ioe) {
+
+            } catch (IOException ioe) {
                 System.out.println(ioe.getMessage());
                 ioe.printStackTrace();
             }
-            
+
         }
-        
+
         /**
          * Removes a given file from the parent's list of children
+         *
          * @param filePath path to the file to remove
          */
-        public void DeleteFile(String filePath, Message m){
+        public void DeleteFile(String filePath, Message m) {
             // check for the first "/"
             int firstIndex = filePath.indexOf("/");
-            if(firstIndex != 0){
+            if (firstIndex != 0) {
                 filePath = "/" + filePath;
             }
             // check if the given file exists
             FileNode file = GetAtPath(filePath);
-            if(file == null){
+            if (file == null) {
                 System.out.println("File does not exist");
                 m.WriteDebugStatement("File does not exist");
                 return;
             }
             // verify that the file is a file
-            if(file.mIsDirectory){
+            if (file.mIsDirectory) {
                 System.out.println("Deletion cancelled, " + filePath + " is a directory");
                 m.WriteDebugStatement("Deletion cancelled, " + filePath + " is a directory");
                 return;
             }
             // retrieve index of the last "/"
             int lastIndex = filePath.lastIndexOf("/");
-            if(lastIndex < 0){
+            if (lastIndex < 0) {
                 System.out.println("Invalid name");
                 m.WriteDebugStatement("Invalid name");
                 return;
@@ -514,7 +554,7 @@ public class ServerMaster {
             // default parent node to the root node
             FileNode parentNode = GetAtPath("/");
             // set parent node to the parent directory
-            if(lastIndex > 1){
+            if (lastIndex > 1) {
                 String parent = filePath.substring(0, lastIndex);
                 parentNode = GetAtPath(parent);
                 if (parentNode == null) {
@@ -545,9 +585,10 @@ public class ServerMaster {
                 System.out.println("Could not delete physical file");
             }
         }
-        
+
         /**
          * Checks path and lists all children in the path
+         *
          * @param filePath directory to search through
          */
         public void ListFiles(String filePath, Message m) {
@@ -559,12 +600,12 @@ public class ServerMaster {
                 m.WriteDebugStatement("No directory named " + filePath + " exists");
                 return;
             }
-            if(!fileDir.mIsDirectory){
+            if (!fileDir.mIsDirectory) {
                 System.out.println("Path is not a directory");
                 m.WriteDebugStatement("Path is not a directory");
                 return;
             }
-            if(fileDir.mChildren.isEmpty()){
+            if (fileDir.mChildren.isEmpty()) {
                 System.out.println("No files in directory " + filePath);
                 m.WriteDebugStatement("No files in directory " + filePath);
                 return;

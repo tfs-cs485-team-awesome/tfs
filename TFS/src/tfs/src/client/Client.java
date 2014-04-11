@@ -171,10 +171,22 @@ public class Client implements ClientInterface {
                 return ParseWriteFile(inStrings, toServer);
             case "GetNode":
                 return ParseGetNode(inStrings, toServer);
+            case "GetFilesUnderPath":
+                return ParseFilesUnderNode(inStrings, toServer);
             default:
                 System.out.println("Unknown command");
                 return false;
         }
+    }
+    
+    public boolean ParseFilesUnderNode(String[] inString, Message toServer) {
+        if(inString.length != 2) {
+            
+            return false;
+        }
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[1]);
+        return true;
     }
 
     public boolean ParseGetNode(String[] inString, Message toServer) {
@@ -311,15 +323,28 @@ public class Client implements ClientInterface {
                 try {
                     mTempFileNode = new FileNode(false);
                     mTempFileNode.ReadFromMessage(m);
+                    
                 } catch (IOException ioe) {
                     System.out.println("Problem deserializing file node");
                     System.out.println(ioe.getMessage());
                 }
+                break;
+            }
+            case "GetFilesUnderPathResponse": {
+                GetFilesUnderNodeResponse(m);
+                break;
             }
 
         }
     }
 
+    public void GetFilesUnderNodeResponse(Message m) {
+        int numStrings = m.ReadInt();
+        for(int i = 0; i < numStrings; ++i) {
+            System.out.println(m.ReadString());
+        }
+    }
+    
     public void ContactChunkServer(Message m) {
         MySocket chunkServerSocket = null;
         String chunkServerInfo = m.ReadString();
@@ -388,7 +413,7 @@ public class Client implements ClientInterface {
 
     @Override
     public String[] GetListFile(String path) throws IOException {
-        sentence = "ls " + path;
+        sentence = "GetFilesUnderPath " + path;
         SendMessage();
         return DebugReceiveMessage();
     }
