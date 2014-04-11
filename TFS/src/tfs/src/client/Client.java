@@ -14,9 +14,11 @@ import java.nio.file.StandardOpenOption;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
+import java.util.Deque;
 import tfs.util.Message;
 import tfs.util.MySocket;
 import tfs.util.FileNode;
@@ -27,6 +29,30 @@ import tfs.util.FileNode;
  */
 public class Client implements ClientInterface {
 
+    private class ClientInput extends Thread {
+
+        Client mClient;
+
+        public ClientInput(Client inClient) {
+            mClient = inClient;
+        }
+
+        public void run() {
+            BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
+            while (true) {
+                try {
+                    String input = inFromUser.readLine();
+                    synchronized (mClient.mInput) {
+                        mInput.addFirst(input);
+                    }
+                } catch (IOException ioe) {
+                    System.out.println(ioe.getMessage());
+                }
+            }
+        }
+    }
+
+    Deque<String> mInput;
     Stack<String> mCurrentPath;
     String mServerIp;
     String sentence = "";
@@ -53,6 +79,10 @@ public class Client implements ClientInterface {
         mServerPortNum = Integer.valueOf(parts[1]);
         mCurrentPath = new Stack<>();
         mCurrentPath.add("");
+        mInput = new ArrayDeque<String>();
+        
+        ClientInput inputThread = new ClientInput(this);
+        inputThread.start();
     }
 
     public void InitConnectionWithServer(MySocket inSocket) {
@@ -113,8 +143,10 @@ public class Client implements ClientInterface {
 
                 while (true) {
 
-                    if (System.in.available() > 0) {
-                        sentence = inFromUser.readLine();
+                    synchronized (mInput) {
+                        if (!mInput.isEmpty()) {
+                            sentence = mInput.removeLast();
+                        }
                     }
                     if (false /*eventually add heartbeat message check in here*/) {
                         break;
