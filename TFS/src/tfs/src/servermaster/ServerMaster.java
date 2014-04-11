@@ -282,6 +282,7 @@ public class ServerMaster {
                     break;
                 }
                 case "GetNode":
+                {
                     String path = m.ReadString();
                     System.out.println("Getting node " + path);
                     outputToClient.WriteDebugStatement("Getting node " + path);
@@ -293,6 +294,7 @@ public class ServerMaster {
                         System.out.println(ioe.getMessage());
                         System.out.println("Problem serializing node");
                     }
+                }
             }
             System.out.println("Finished client input");
             outputToClient.WriteDebugStatement("Finished client input");

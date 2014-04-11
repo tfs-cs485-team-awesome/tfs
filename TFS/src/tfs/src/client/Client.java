@@ -290,7 +290,7 @@ public class Client implements ClientInterface {
         return true;
     }
 
-    public void ParseServerInput(Message m) {
+    public void ParseServerInput(Message m) throws IOException{
         String input = m.ReadString();
         switch (input) {
             case "Print":
@@ -304,6 +304,7 @@ public class Client implements ClientInterface {
                 WriteFileResponse(m);
                 break;
             case "ReadFileResponse":
+                //name datalen data
                 ReadFileResponse(m);
                 break;
             case "GetNodeResponse": {                
@@ -349,8 +350,11 @@ public class Client implements ClientInterface {
         // after getting chunks, append to end of chunk
     }
 
-    public void ReadFileResponse(Message m) {
-
+    public void ReadFileResponse(Message m) throws IOException{
+        String filename = m.ReadString();
+        int bytesToRead = m.ReadInt();
+        byte[] bytesRead = m.ReadData(bytesToRead);
+        WriteLocalFile(filename, bytesRead);
     }
 
     @Override
