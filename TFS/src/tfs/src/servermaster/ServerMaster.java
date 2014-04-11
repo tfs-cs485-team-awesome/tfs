@@ -494,11 +494,12 @@ public class ServerMaster {
                 output.WriteDebugStatement("File does not exist");
                 return;
             }
-            
             try {
-                InputStream is =  new FileInputStream(fileName);
-                byte[] data = null;
-                if(is.read(data, offset, length) >= 0) {
+                Path filePath = Paths.get(fileName);
+                BufferedInputStream br = new BufferedInputStream(Files.newInputStream(filePath, READ));
+
+                byte[] data = new byte[length];
+                if(br.read(data, offset, length) >= 0) {
                     output.WriteString("ReadFileResponse");
                     output.WriteString(fileName);
                     output.WriteInt(data.length);
@@ -509,7 +510,6 @@ public class ServerMaster {
             } catch (IOException ie) {
                 output.WriteDebugStatement("Unable to read file");
             }
-            
         }
 
         public void WriteFile(String fileName, byte[] data, Message output) {
