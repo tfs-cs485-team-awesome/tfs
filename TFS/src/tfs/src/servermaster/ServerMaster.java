@@ -254,7 +254,7 @@ public class ServerMaster {
                 return;
             }
             // default parent node to the root node
-            FileNode parentNode = GetAtPath("/");
+            FileNode parentNode = mMaster.mFileRoot;
             // set parent node to the parent directory
             if (lastIndex > 1) {
                 String parent = name.substring(0, lastIndex);
@@ -296,7 +296,7 @@ public class ServerMaster {
                 case "DeleteFile":
                 case "deletefile":
                 case "rm":
-                    DeleteFile(m.ReadString(), outputToClient);
+                    DeleteDirectory(m.ReadString(), outputToClient);
                     break;
                 case "ListFiles":
                 case "listfiles":
@@ -516,7 +516,7 @@ public class ServerMaster {
                 return;
             }
             // default parent node to the root node
-            FileNode parentNode = GetAtPath("/");
+            FileNode parentNode = mMaster.mFileRoot;
             // set parent node to the parent directory
             if (lastIndex > 1) {
                 String parent = name.substring(0, lastIndex);
@@ -625,42 +625,37 @@ public class ServerMaster {
 
         }
 
-        /**
-         * Removes a given file from the parent's list of children
-         *
-         * @param filePath path to the file to remove
-         */
-        public void DeleteFile(String filePath, Message m) {
+        public void DeleteDirectory(String path, Message m){
             // check for the first "/"
-            int firstIndex = filePath.indexOf("/");
+            int firstIndex = path.indexOf("/");
             if (firstIndex != 0) {
-                filePath = "/" + filePath;
+                path = "/" + path;
             }
-            // check if the given file exists
-            FileNode file = GetAtPath(filePath);
-            if (file == null) {
-                System.out.println("File does not exist");
-                m.WriteDebugStatement("File does not exist");
+            // check if the path is the root
+            if (path.equals("/")){
+                System.out.println("Cannot delete root folder");
+                m.WriteDebugStatement("Cannot delete root folder");
                 return;
             }
-            // verify that the file is a file
-            if (file.mIsDirectory) {
-                System.out.println("Deletion cancelled, " + filePath + " is a directory");
-                m.WriteDebugStatement("Deletion cancelled, " + filePath + " is a directory");
+            // check if the given path exists
+            FileNode file = GetAtPath(path);
+            if (file == null) {
+                System.out.println("Path does not exist");
+                m.WriteDebugStatement("Path does not exist");
                 return;
             }
             // retrieve index of the last "/"
-            int lastIndex = filePath.lastIndexOf("/");
+            int lastIndex = path.lastIndexOf("/");
             if (lastIndex < 0) {
                 System.out.println("Invalid name");
                 m.WriteDebugStatement("Invalid name");
                 return;
             }
             // default parent node to the root node
-            FileNode parentNode = GetAtPath("/");
+            FileNode parentNode = mMaster.mFileRoot;
             // set parent node to the parent directory
             if (lastIndex > 1) {
-                String parent = filePath.substring(0, lastIndex);
+                String parent = path.substring(0, lastIndex);
                 parentNode = GetAtPath(parent);
                 if (parentNode == null) {
                     System.out.println("Parent directory does not exist");
@@ -678,6 +673,69 @@ public class ServerMaster {
             if (file.mReadLock || file.mWriteLock) {
                 System.out.println("File is currently in use, cancelling command");
                 return;
+            }
+            // check if the path is a file
+            if (!file.mIsDirectory) {
+                DeleteFile(path, m);
+                return;
+            }
+            ArrayList<String> allFiles = new ArrayList<String>();
+            ArrayList<String> allDirs = new ArrayList<String>();
+            allDirs.add(path);
+            // find all children in the directory
+            for (FileNode child : file.mChildren) {
+                if(child.mIsDirectory){
+                    allDirs.add(path + "/" + child.mName);
+                    RecursiveDeleteDirectory(path + "/" + child.mName, child, allDirs, allFiles, m);
+                }
+                else {
+                    allFiles.add(path + "/" + child.mName);
+                }
+            }
+            // delete files from file structure
+            for (String fileName : allFiles) {
+                DeleteFile(fileName, m);
+            }
+            // delete directories from file structure
+            for (String dir : allDirs) {
+                DeleteFromFileStructure(true, dir);
+                // delete directory
+                System.out.println("Deleting directory " + dir);
+                m.WriteDebugStatement("Deleting directory " + dir);
+            }
+            // remove link from parent node to this directory
+            parentNode.mChildren.remove(file);
+        }
+        
+        public void RecursiveDeleteDirectory(String path, FileNode file, ArrayList<String> allDirs, ArrayList<String> allFiles, Message m){
+            // delete all children in the directory
+            for (FileNode child : file.mChildren) {
+                if(child.mIsDirectory){
+                    allDirs.add(path + "/" + child.mName);
+                    RecursiveDeleteDirectory(path + "/" + child.mName, child, allDirs, allFiles, m);
+                }
+                else {
+                    allFiles.add(path + "/" + child.mName);
+                }
+            }
+        }
+        
+        /**
+         * Removes a given file from the parent's list of children
+         *
+         * @param filePath path to the file to remove
+         */
+        public void DeleteFile(String filePath, Message m) {
+            // retrieve file node
+            FileNode file = GetAtPath(filePath);
+            // retrieve index of the last "/"
+            int lastIndex = filePath.lastIndexOf("/");
+            // default parent node to the root node
+            FileNode parentNode = mMaster.mFileRoot;
+            // set parent node to the parent directory
+            if (lastIndex > 1) {
+                String parent = filePath.substring(0, lastIndex);
+                parentNode = GetAtPath(parent);
             }
             // delete file from file structure
             DeleteFromFileStructure(false, filePath);
