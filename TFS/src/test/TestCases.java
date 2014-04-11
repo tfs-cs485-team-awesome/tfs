@@ -8,6 +8,11 @@ package test;
 
 import java.io.*;
 import client.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import static java.nio.file.StandardOpenOption.APPEND;
+import static java.nio.file.StandardOpenOption.CREATE;
 import servermaster.*;
 import tfs.*;
 import java.util.*;
@@ -71,7 +76,7 @@ public class TestCases {
         return true;
         }
         catch(IOException e) {
-            System.out.println(e.getMessage());
+            System.out.println("Test 3 failed due to exception" + e.getMessage());
             e.printStackTrace();
             return false;
         }
@@ -86,4 +91,18 @@ public class TestCases {
         //ReadFile(file);
         //WriteFile(path);
     }
+        public void test5(String pathname, String localpath) {
+        try{
+        data = testClient.ReadFile(pathname);
+        //somehow get data that is read from file here
+        testClient.WriteLocalFile(localpath, data);
+        }
+        catch(IOException e) {
+            System.out.println("Test 5 failed due to exception" + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        
+    }
+
 }
