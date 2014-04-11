@@ -415,6 +415,8 @@ public class ServerMaster {
                 m.WriteDebugStatement("Parent directory is locked, cancelling command");
                 return;
             }
+            // save file structure
+            SaveFileStructure(true, name);
             // create new directory
             System.out.println("Creating new dir " + name);
             m.WriteDebugStatement("Creating new dir " + name);
@@ -475,6 +477,8 @@ public class ServerMaster {
                 m.WriteDebugStatement("Parent directory is locked, cancelling command");
                 return;
             }
+            // save file structure
+            SaveFileStructure(true, name);
             // create new file
             System.out.println("Creating new file " + name);
             m.WriteDebugStatement("Creating new file " + name);
