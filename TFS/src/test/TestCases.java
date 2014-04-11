@@ -46,14 +46,12 @@ public class TestCases {
                 String curstr = q.remove().toString();
                 String temp = curstr + "/" + i;
                 q.add(temp);
-                System.out.print(temp);
                 testClient.CreateDir(temp);
 
                 i++;
                 if(dirs - i >= 0) {
                     temp = curstr + "/" + i;
                     q.add(temp);
-                    System.out.print(temp);
                     testClient.CreateDir(temp);
                 }
                 i++;
@@ -82,8 +80,13 @@ public class TestCases {
      * its path. 
      */
     public void testCase4 (String path, String file) {
-        //CreateNewFile(path);
-        //ReadFile(file);
-        //WriteFile(path);
+        try {
+            testClient.CreateFile(file);
+            testClient.ReadFile(path);
+            testClient.WriteFile(file);
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
     }
 }
