@@ -181,6 +181,44 @@ public class ServerMaster {
             }
         }
 
+        public void DeleteFromFileStructure(Boolean isDirectory, String name){
+            String lineToDelete;
+            if(isDirectory){
+                lineToDelete = "DIRECTORY " + name;
+            }
+            else {
+                lineToDelete = "FILE " + name;
+            }
+            File file = new File("SYSTEM_LOG.txt");
+            if(!file.exists() || !file.isFile()){
+                System.out.println("Unable to delete from TFS file structure");
+                return;
+            }
+            try {
+                File tempFile = new File(file.getAbsolutePath() + ".tmp");
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                PrintWriter pw = new PrintWriter(new FileWriter(tempFile));
+                
+                String line = null;
+                while ((line = br.readLine()) != null) {
+                    if (!line.trim().equals(lineToDelete)) {
+                        pw.println(line);
+                        pw.flush();
+                    }
+                }
+                pw.close();
+                br.close();
+                if (!file.delete()) {
+                    System.out.println("Could not delete file");
+                    return;
+                }
+                if (!tempFile.renameTo(file))
+                    System.out.println("Could not rename file");
+            } catch(IOException ie) {
+                System.out.println("Failed to delete file from the TFS file structure");
+            }
+        }
+        
         public void CreateNewSetupDir(String name) {
             // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
@@ -594,6 +632,8 @@ public class ServerMaster {
                 System.out.println("File is currently in use, cancelling command");
                 return;
             }
+            // delete file from file structure
+            DeleteFromFileStructure(false, filePath);
             // delete file
             System.out.println("Deleting file " + filePath);
             m.WriteDebugStatement("Deleting file " + filePath);
