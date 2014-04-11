@@ -10,6 +10,7 @@ import java.io.*;
 import client.*;
 import servermaster.*;
 import tfs.*;
+import java.util.*;
 
 /**
  *
@@ -30,7 +31,39 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-    
+        /**
+     * Create a hierarchical directory structure.   
+     */
+    public void test1 (int dirs) {
+        
+        try {
+            int i = 2;
+            Queue q = new LinkedList();
+            q.add("1");
+            testClient.CreateDir("1");
+
+            while (dirs - i >= 0) {
+                String curstr = q.remove().toString();
+                String temp = curstr + "/" + i;
+                q.add(temp);
+                System.out.print(temp);
+                testClient.CreateDir(temp);
+
+                i++;
+                if(dirs - i >= 0) {
+                    temp = curstr + "/" + i;
+                    q.add(temp);
+                    System.out.print(temp);
+                    testClient.CreateDir(temp);
+                }
+                i++;
+            }
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+        }
+        
+    }
     
     public boolean test3(String pathname){
         try {
@@ -42,5 +75,15 @@ public class TestCases {
             e.printStackTrace();
             return false;
         }
+    }
+    
+    /**
+     *  Store a file on the local machine in a target TFS file specified by 
+     * its path. 
+     */
+    public void testCase4 (String path, String file) {
+        //CreateNewFile(path);
+        //ReadFile(file);
+        //WriteFile(path);
     }
 }
