@@ -10,10 +10,13 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
 import java.util.ArrayList;
+import java.util.List;
+import java.util.ArrayDeque;
 import tfs.util.Message;
 import tfs.util.MySocket;
 import tfs.util.FileNode;
@@ -24,6 +27,7 @@ import tfs.util.FileNode;
  */
 public class Client implements ClientInterface {
 
+    ArrayDeque<String> mCurrentPath;
     String mServerIp;
     String sentence = "";
     int mServerPortNum;
@@ -47,6 +51,8 @@ public class Client implements ClientInterface {
 
         mServerIp = parts[0];
         mServerPortNum = Integer.valueOf(parts[1]);
+        mCurrentPath = new ArrayDeque<>();
+        mCurrentPath.add("");
     }
 
     public void InitConnectionWithServer(MySocket inSocket) {
@@ -147,13 +153,18 @@ public class Client implements ClientInterface {
             case "listfiles":
             case "ls":
                 return ParseListFiles(inStrings, toServer);
+            case "SeekFile":
+            case "seekfile":
+            case "seek":
+                return ParseSeekFile(inStrings, toServer);
             case "ReadFile":
             case "readfile":
             case "read":
                 return ParseReadFile(inStrings, toServer);
-            case "WriteStringFile":
-            case "writeStringtofile":
-            case "writeStr":
+            case "Append":
+            case "append":
+            case "appendtofile":
+            case "AppendToFile":
                 return ParseWriteStringToFile(inStrings, toServer);
             case "WriteFile":
             case "writetofile":
@@ -163,10 +174,40 @@ public class Client implements ClientInterface {
                 return ParseGetNode(inStrings, toServer);
             case "GetFilesUnderPath":
                 return ParseFilesUnderNode(inStrings, toServer);
+            case "cd":
+            case "dir":
+                return ParseTestPath(inStrings, toServer);
             default:
                 System.out.println("Unknown command");
                 return false;
         }
+    }
+    
+    public String GetCurrentPath() {
+        String returnString = "";
+        for(String s : mCurrentPath) {
+            returnString += "/" + s ;
+        }
+        return returnString;
+    }
+
+    public boolean ParseTestPath(String[] inString, Message toServer) {
+        if (inString.length != 2) {
+            return false;
+        }
+        if (inString[1].contentEquals("..")) {
+            if (mCurrentPath.size() > 1) {
+                mCurrentPath.pop();
+                return true;
+            } else {
+                System.out.println("At top of filesystem");
+                return false;
+            }
+        }
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(GetCurrentPath() + inString[1]);
+        mCurrentPath.push(inString[1]);
+        return true;
     }
 
     public boolean ParseFilesUnderNode(String[] inString, Message toServer) {
@@ -220,7 +261,7 @@ public class Client implements ClientInterface {
 
     public boolean ParseWriteToFile(String[] inString, Message toServer) {
         //cmd filename len data
-        if (inString.length != 4) {
+        if (inString.length != 3) {
             System.out.println("Invalid number of arguments");
             return false;
         }
@@ -228,35 +269,36 @@ public class Client implements ClientInterface {
 
         toServer.WriteString(inString[1]);
 
-        int sizeOfData = 0;
-        if (!inString[2].matches("[0-9]+")) {
-            System.out.println("Invalid argument type");
+        //it's a file
+        //handle this sometime
+        try {
+            Path filePath = Paths.get(inString[2]);
+            byte[] data = Files.readAllBytes(filePath);
+            toServer.WriteInt(data.length);
+            toServer.AppendData(data);
+
+        } catch (IOException ie) {
+            System.out.println("Unable to read file");
             return false;
-        } else {
-            toServer.WriteInt(Integer.valueOf(inString[2]));
-            sizeOfData = Integer.valueOf(inString[2]);
         }
 
-        if (inString[3].matches("[/S]+/.[/S]+")) {
-            //it's a file
-            //handle this sometime
-            try {
-                Path filePath = Paths.get(inString[3]);
-                byte[] data = new byte[(int)Files.size(filePath)];
-                data = Files.readAllBytes(filePath);
-
-            } catch (IOException ie) {
-                System.out.println("Unable to read file");
-                return false;
-            }
-
-            System.out.println("Got a file");
-        }
-        
         return true;
     }
 
     public boolean ParseReadFile(String[] inString, Message toServer) {
+        //cmd filename
+
+        if (inString.length != 2) {
+            System.out.println("Invalid number of arguments");
+            return false;
+        }
+
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[1]);
+        return true;
+    }
+
+    public boolean ParseSeekFile(String[] inString, Message toServer) {
         //cmd filename offset len
 
         if (inString.length != 4) {
@@ -286,12 +328,18 @@ public class Client implements ClientInterface {
     }
 
     public boolean ParseListFiles(String[] inString, Message toServer) {
-        if (inString.length != 2) {
+        if (inString.length > 2) {
             System.out.println("Invalid number of arguments");
             return false;
         }
         toServer.WriteString(inString[0]);
-        toServer.WriteString(inString[1]);
+        
+        if(inString.length == 1) {
+            toServer.WriteString(GetCurrentPath());
+        }
+        else {
+            toServer.WriteString(inString[1]);
+        }
         return true;
     }
 
@@ -338,9 +386,9 @@ public class Client implements ClientInterface {
             case "WriteFileResponse":
                 WriteFileResponse(m);
                 break;
-            case "ReadFileResponse":
+            case "SeekFileResponse":
                 //name datalen data
-                ReadFileResponse(m);
+                SeekFileResponse(m);
                 break;
             case "GetNodeResponse": {
                 try {
@@ -357,7 +405,20 @@ public class Client implements ClientInterface {
                 mTempFilesUnderNode = GetFilesUnderNodeResponse(m);
                 break;
             }
+            case "ReadFileResponse":
+                ReadFileResponse(m);
+                break;
+            case "TestPathResponse":
+                TestPathResponse(m);
+                break;
 
+        }
+    }
+    
+    public void TestPathResponse(Message m) {
+        int result = m.ReadInt();
+        if(result != 1) {
+            mCurrentPath.pop();
         }
     }
 
@@ -394,13 +455,20 @@ public class Client implements ClientInterface {
         }
     }
 
+    public void ReadFileResponse(Message m) throws IOException {
+        String filename = m.ReadString();
+        int bytesToRead = m.ReadInt();
+        byte[] bytesRead = m.ReadData(bytesToRead);
+        WriteLocalFile(filename, bytesRead);
+    }
+
     public void WriteFileResponse(Message m) {
         // if master returns chunk to be created, contact chunk server to create chunks
 
         // after getting chunks, append to end of chunk
     }
 
-    public void ReadFileResponse(Message m) throws IOException {
+    public void SeekFileResponse(Message m) throws IOException {
         String filename = m.ReadString();
         int bytesToRead = m.ReadInt();
         byte[] bytesRead = m.ReadData(bytesToRead);
@@ -445,14 +513,16 @@ public class Client implements ClientInterface {
     }
 
     @Override
-    public byte[] ReadFile(String fileName) throws IOException {
+    public byte[] SeekFile(String fileName) throws IOException {
         System.out.println("Not supported yet");
         return new byte[0];
     }
 
     @Override
     public void WriteFile(String fileName) throws IOException {
-        System.out.println("Not supported yet");
+        sentence = "write " + fileName;
+        SendMessage();
+        while (!ReceiveMessage());
         //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
@@ -467,7 +537,7 @@ public class Client implements ClientInterface {
     @Override
     public void WriteLocalFile(String fileName, byte[] data) throws IOException {
         Path filePath = Paths.get(fileName);
-        OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
+        OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, StandardOpenOption.TRUNCATE_EXISTING));
         out.write(data);
         out.close();
         System.out.println("Finished writing file");

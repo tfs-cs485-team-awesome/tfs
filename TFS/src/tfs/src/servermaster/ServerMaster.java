@@ -265,14 +265,24 @@ public class ServerMaster {
                 case "ls":
                     ListFiles(m.ReadString(), outputToClient);
                     break;
+                case "SeekFile":
+                case "seekfile":
+                case "seek":
+                    SeekFile(m.ReadString(), m.ReadInt(), m.ReadInt(), outputToClient);
+                    break;
                 case "ReadFile":
                 case "readfile":
                 case "read":
-                    ReadFile(m.ReadString(), m.ReadInt(), m.ReadInt(), outputToClient);
+                    ReadFile(m.ReadString(), outputToClient);
                     break;
                 case "WriteFile":
                 case "writefile":
-                case "write": {
+                case "write":
+                case "Append":
+                case "append":
+                case "appendtofile":
+                case "AppendToFile":
+                {
                     String name = m.ReadString();
                     int lengthToRead = m.ReadInt();
                     byte[] data = m.ReadData(lengthToRead);
@@ -296,12 +306,31 @@ public class ServerMaster {
                 case "GetFilesUnderPath":
                     GetFilesUnderPath(m.ReadString(), outputToClient);
                     break;
+                case "cd":
+                case "dir":
+                    GetValidityOfPath(m.ReadString(), outputToClient);
+                    break;
+                    
             }
             System.out.println("Finished client input");
             outputToClient.WriteDebugStatement("Finished client input");
             return outputToClient;
         }
 
+        
+        public void GetValidityOfPath(String path, Message m) {
+            FileNode nodeAtPath = GetAtPath(path);
+            m.WriteString("TestPathResponse");
+            if(nodeAtPath == null) {
+                m.WriteInt(0);
+                m.WriteDebugStatement("Path " + path + " does not exist");
+            }
+            else {
+                m.WriteInt(1);
+            }
+        }
+        
+        
         /**
          * Retrieves and returns a file node specified in the parameter
          *
@@ -486,7 +515,7 @@ public class ServerMaster {
             return;
         }
 
-        public void ReadFile(String fileName, int offset, int length, Message output) {
+        public void SeekFile(String fileName, int offset, int length, Message output) {
             FileNode fileNode = GetAtPath(fileName);
             if (fileNode == null) {
                 System.out.println("File does not exist");
@@ -500,7 +529,7 @@ public class ServerMaster {
 
                 byte[] data = new byte[length];
                 if(br.read(data, offset, length) > 0) {
-                    output.WriteString("ReadFileResponse");
+                    output.WriteString("SeekFileResponse");
                     output.WriteString(fileName);
                     output.WriteInt(data.length);
                     output.AppendData(data);
@@ -509,7 +538,27 @@ public class ServerMaster {
                 }
             } catch (IOException ie) {
                 output.WriteDebugStatement("Unable to read file");
-                output.WriteDebugStatement("Unable to read file");
+            }
+        }
+        
+        public void ReadFile(String fileName, Message output) {
+            FileNode fileNode = GetAtPath(fileName);
+            if (fileNode == null) {
+                System.out.println("File does not exist");
+                output.WriteDebugStatement("File does not exist");
+                return;
+            }
+            try {
+                fileName = fileName.replaceAll("/", ".");
+                Path filePath = Paths.get(fileName);
+                byte[] data = Files.readAllBytes(filePath);
+                output.WriteString("ReadFileResponse");
+                output.WriteString(fileName);
+                output.WriteInt(data.length);
+                output.AppendData(data);
+            } catch (IOException ioe) {
+                output.WriteDebugStatement("Cannot open file to read");
+                output.WriteDebugStatement(ioe.getMessage());
             }
         }
 

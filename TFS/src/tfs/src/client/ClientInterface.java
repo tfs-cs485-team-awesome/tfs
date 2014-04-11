@@ -19,7 +19,7 @@ public interface ClientInterface {
     public void DeleteFile(String fileName) throws IOException;
     public void ListFile(String path) throws IOException;
     public String[] GetListFile(String path) throws IOException;
-    public byte[] ReadFile(String fileName) throws IOException;
+    public byte[] SeekFile(String fileName) throws IOException;
     public FileNode GetAtFilePath(String path) throws IOException;
     public void WriteFile(String fileName) throws IOException;
     public void WriteLocalFile(String fileName, byte[] data) throws IOException;

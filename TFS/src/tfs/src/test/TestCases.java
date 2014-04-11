@@ -125,7 +125,7 @@ public class TestCases {
     public void test5(String pathname, String localpath) {
         try{
             byte[] data;
-            data = testClient.ReadFile(pathname);
+            data = testClient.SeekFile(pathname);
             if (data != null) {
                 try{
                     testClient.WriteLocalFile(localpath, data);
