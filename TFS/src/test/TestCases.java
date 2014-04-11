@@ -16,8 +16,9 @@ import tfs.*;
  * @author Kevin
  */
 public class TestCases {
+    static Client testClient;
     public static void main(String[] args) {
-        Client testClient = new Client("localhost:6789");
+        testClient = new Client("localhost:6789");
         try {
             testClient.ConnectToServer();
             testClient.CreateDir("something");
@@ -27,6 +28,19 @@ public class TestCases {
         } catch (IOException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
+        }
+    }
+    
+    
+    public boolean test3(String pathname){
+        try {
+        testClient.DeleteFile(pathname);
+        return true;
+        }
+        catch(IOException e) {
+            System.out.println(e.getMessage());
+            e.printStackTrace();
+            return false;
         }
     }
 }
