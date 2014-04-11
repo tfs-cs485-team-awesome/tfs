@@ -67,7 +67,7 @@ public class Client implements ClientInterface {
             Message fromServer = new Message(serverSocket.ReadBytes());
             while (!fromServer.isFinished()) {
                 //message has data
-                ParseInput(fromServer);
+                ParseServerInput(fromServer);
             }
             return true;
         }
@@ -95,9 +95,7 @@ public class Client implements ClientInterface {
 
         if (!sentence.isEmpty()) {
             String[] sentenceTokenized = sentence.split(" ");
-            ParseUserInput(sentenceTokenized, toServer);
-            if (ValidMessage(toServer)) {
-                toServer.ResetReadHead();
+            if(ParseUserInput(sentenceTokenized, toServer)) {
                 serverSocket.WriteMessage(toServer);
             }
         }
@@ -144,49 +142,38 @@ public class Client implements ClientInterface {
         }
     }
 
-    public void ParseUserInput(String[] inStrings, Message toServer) {
+    public boolean ParseUserInput(String[] inStrings, Message toServer) {
         String command = inStrings[0];
         switch (command) {
             case "CreateNewDirectory":
             case "createnewdirectory":
             case "mkdir":
-                ParseCreateNewDir(inStrings, toServer);
-                break;
+                return ParseCreateNewDir(inStrings, toServer);
             case "CreateNewFile":
             case "createnewfile":
             case "touch":
-                ParseCreateNewFile(inStrings, toServer);
-                break;
+                return ParseCreateNewFile(inStrings, toServer);
             case "DeleteFile":
             case "deletefile":
             case "rm":
-                ParseDeleteFile(inStrings, toServer);
-                break;
+                return ParseDeleteFile(inStrings, toServer);
             case "ListFiles":
             case "listfiles":
             case "ls":
-                ParseListFiles(inStrings, toServer);
-                break;
+                return ParseListFiles(inStrings, toServer);
             case "ReadFile":
             case "readfile":
             case "read":
-                ParseReadFile(inStrings, toServer);
-                break;
+                return ParseReadFile(inStrings, toServer);
             case "WriteFile":
             case "writetofile":
             case "write":
-                ParseWriteFile(inStrings, toServer);
-                break;
+                return ParseWriteFile(inStrings, toServer);
             case "GetNode":
-                ParseGetNode(inStrings, toServer);
-                break;
+                return ParseGetNode(inStrings, toServer);
             default:
                 System.out.println("Unknown command");
-                break;
-        }
-
-        for (String s : inStrings) {
-            toServer.WriteString(s);
+                return false;
         }
     }
 
@@ -303,82 +290,7 @@ public class Client implements ClientInterface {
         return true;
     }
 
-    public Boolean ValidMessage(Message m) {
-        String input = m.ReadString();
-        switch (input) {
-            case "CreateNewDirectory":
-            case "createnewdirectory":
-            case "mkdir":
-                return ValidMessageString(m);
-            case "CreateNewFile":
-            case "createnewfile":
-            case "touch":
-                return ValidMessageString(m);
-            case "DeleteFile":
-            case "deletefile":
-            case "rm":
-                return ValidMessageString(m);
-            case "ListFiles":
-            case "listfiles":
-            case "ls":
-                return ValidMessageString(m);
-            case "ReadFile":
-            case "readfile":
-            case "read":
-                return ValidMessageIntInt(m);
-            case "WriteFile":
-            case "writetofile":
-            case "write":
-                return ValidMessageData(m);
-        }
-        System.out.println("Not a recognized command");
-        return true;
-    }
-
-    public Boolean ValidMessageString(Message m) {
-        try {
-            String parameter = m.ReadString();
-        } catch (IllegalArgumentException e) {
-            System.out.println("Invalid command");
-            return false;
-        }
-        return true;
-    }
-
-    public Boolean ValidMessageInt(Message m) {
-        try {
-            int parameter = m.ReadInt();
-        } catch (IllegalArgumentException e) {
-            System.out.println("Invalid command");
-            return false;
-        }
-        return true;
-    }
-
-    public Boolean ValidMessageIntInt(Message m) {
-        try {
-            int parameter1 = m.ReadInt();
-            int parameter2 = m.ReadInt();
-        } catch (IllegalArgumentException e) {
-            System.out.println("Invalid command");
-            return false;
-        }
-        return true;
-    }
-
-    public Boolean ValidMessageData(Message m) {
-        try {
-            String name = m.ReadString();
-            int length = m.ReadInt();
-            byte[] data = m.ReadData(length);
-        } catch (IllegalArgumentException e) {
-            System.out.println("Invalid command");
-            return false;
-        }
-        return true;
-    }
-
-    public void ParseInput(Message m) {
+    public void ParseServerInput(Message m) {
         String input = m.ReadString();
         switch (input) {
             case "Print":
@@ -396,8 +308,8 @@ public class Client implements ClientInterface {
                 break;
             case "GetNodeResponse": {                
                 try {
-                    FileNode readNode = new FileNode(false);
-                    readNode.ReadFromMessage(m);
+                    mTempFileNode = new FileNode(false);
+                    mTempFileNode.ReadFromMessage(m);
                 } catch (IOException ioe) {
                     System.out.println("Problem deserializing file node");
                     System.out.println(ioe.getMessage());
