@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import tfs.src.chunkserver.ChunkServer;
 import tfs.src.client.Client;
 import tfs.src.servermaster.ServerMaster;
+import tfs.src.test.TestCases;
 
 /**
  *
@@ -84,6 +85,10 @@ public class TFS {
                     chunk.RunLoop();
                 }
                 break;
+            case "test":
+            case "TEST":
+            case "Test":
+                TestCases.main(args);
             default:
                 System.out.println("Invalid type");
                 break;
