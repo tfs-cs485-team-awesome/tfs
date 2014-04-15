@@ -20,12 +20,14 @@ public class MySocket {
     private DataOutputStream mDataOutput;
     private DataInputStream mDataInput;
     private BufferedReader mDataReader;
+    private String mSocketID; // is the ip:port
 
     public MySocket(String inIp, int inPort) throws UnknownHostException, IOException {
         mSocket = new Socket(inIp, inPort);
         mDataOutput = new DataOutputStream(mSocket.getOutputStream());
         mDataInput = new DataInputStream(mSocket.getInputStream());
         mDataReader = new BufferedReader(new InputStreamReader(mDataInput));
+        mSocketID = inIp + ":" + inPort;
     }
 
     public MySocket(Socket inSocket) throws IOException {
@@ -33,18 +35,16 @@ public class MySocket {
         mDataOutput = new DataOutputStream(mSocket.getOutputStream());
         mDataInput = new DataInputStream(mSocket.getInputStream());
         mDataReader = new BufferedReader(new InputStreamReader(mDataInput));
+        
+        String socketInetAddr = inSocket.getInetAddress().toString();
+        mSocketID = socketInetAddr.substring(1, socketInetAddr.length()) + ":" + inSocket.getPort();
+    }
+    
+    public String GetID() {
+        return mSocketID;
     }
 
     public void WriteMessage(Message m) throws IOException {
-        //Write any debug statements if they exist
-/*        Message newMessage = new Message();
-        ArrayList<String> debugStatements = m.GetDebugStatements();
-        newMessage.WriteInt(debugStatements.size());
-        for (String s : m.GetDebugStatements()) {
-            newMessage.WriteString(s);
-        }
-        newMessage.AppendData(m.ReadData());
-        */
         //Write internal data
         byte[] messageBytes = m.ReadData();
         WriteBytes(messageBytes);

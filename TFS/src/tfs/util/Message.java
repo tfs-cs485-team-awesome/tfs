@@ -6,9 +6,8 @@
 package tfs.util;
 
 import java.io.*;
-import java.net.*;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
+import tfs.util.MySocket;
 
 /**Message class holds a generic byte array
  * Acts like a one way stack that holds generic data
@@ -50,6 +49,7 @@ public class Message implements Serializable {
         return null;
     }
 
+    private MySocket mSocket = null; //socket to send message on
     private int mReadHead = 0;
     private int mWriteHead = 0;
     private byte[] mByteContents;
@@ -69,6 +69,14 @@ public class Message implements Serializable {
             System.out.println(ReadString());
         }
         */
+    }
+    
+    public void SetSocket(MySocket inSocket) {
+        mSocket = inSocket;
+    }
+    
+    public void Send() throws IOException {
+        mSocket.WriteMessage(this);
     }
 
     /**

@@ -25,29 +25,19 @@ public class FileNode implements Serializable {
     }
 
     /**
-     * Metadata for each chunk Holds the location of that chunk and the
-     * locations of each of the replicas for that chunk
-     */
-    private class ChunkMetadata {
-
-        String mLocation;
-        ArrayList<String> mReplicaLocations;
-
-        public ChunkMetadata() {
-            mReplicaLocations = new ArrayList<String>();
-        }
-    }
-
-    /**
      * Metadata for each file Holds the list of chunks that make up a file
      */
-    private class FileMetadata {
+    public class FileMetadata {
 
-        ArrayList<ChunkMetadata> mChunks;
+        public ArrayList<String> mChunkLocations; //index by chunk nubmer
 
         public FileMetadata() {
-            mChunks = new ArrayList<ChunkMetadata>();
+            mChunkLocations = new ArrayList<>();
         }
+    }
+    
+    public void AddChunkAtLocation(String inLocation) {
+        mFileMetadata.mChunkLocations.add(inLocation);
     }
 
     public void WriteToMessage(Message m) throws IOException {

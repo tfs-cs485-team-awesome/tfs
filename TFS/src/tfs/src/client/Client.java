@@ -139,43 +139,34 @@ public class Client implements ClientInterface {
 
     public boolean ParseUserInput(String[] inStrings, Message toServer) {
         String command = inStrings[0];
-        switch (command) {
-            case "CreateNewDirectory":
+        switch (command.toLowerCase()) {
             case "createnewdirectory":
             case "mkdir":
                 return ParseCreateNewDir(inStrings, toServer);
-            case "CreateNewFile":
             case "createnewfile":
             case "touch":
                 return ParseCreateNewFile(inStrings, toServer);
-            case "DeleteFile":
             case "deletefile":
             case "rm":
                 return ParseDeleteFile(inStrings, toServer);
-            case "ListFiles":
             case "listfiles":
             case "ls":
                 return ParseListFiles(inStrings, toServer);
-            case "SeekFile":
             case "seekfile":
             case "seek":
                 return ParseSeekFile(inStrings, toServer);
-            case "ReadFile":
             case "readfile":
             case "read":
                 return ParseReadFile(inStrings, toServer);
-            case "Append":
             case "append":
             case "appendtofile":
-            case "AppendToFile":
                 return ParseAppendFileToFile(inStrings, toServer);
-            case "WriteFile":
             case "writetofile":
             case "write":
                 return ParseWriteToFile(inStrings, toServer);
-            case "GetNode":
+            case "getnode":
                 return ParseGetNode(inStrings, toServer);
-            case "GetFilesUnderPath":
+            case "getfilesunderpath":
                 return ParseFilesUnderNode(inStrings, toServer);
             case "cd":
             case "dir":
@@ -183,7 +174,7 @@ public class Client implements ClientInterface {
             case "pwd":
                 System.out.println(GetCurrentPath());
                 return false;
-            case "LogicalFileCount":
+            case "logicalfilecount":
                 return ParseLogicalFileCount(inStrings, toServer);
             default:
                 System.out.println("Unknown command" + inStrings[0]);
@@ -430,22 +421,22 @@ public class Client implements ClientInterface {
 
     public void ParseServerInput(Message m) throws IOException {
         String input = m.ReadString();
-        switch (input) {
-            case "Print":
+        switch (input.toLowerCase()) {
+            case "print":
                 //print out a debug statement
                 System.out.println(m.ReadString());
                 break;
-            case "ChunkInfo":
+            case "chunkinfo":
                 ContactChunkServer(m);
                 break;
-            case "WriteFileResponse":
+            case "sm-writefileresponse":
                 WriteFileResponse(m);
                 break;
-            case "SeekFileResponse":
+            case "sm-seekfileresponse":
                 //name datalen data
                 SeekFileResponse(m);
                 break;
-            case "GetNodeResponse": {
+            case "sm-getnoderesponse": {
                 try {
                     mTempFileNode = new FileNode(false);
                     mTempFileNode.ReadFromMessage(m);
@@ -456,17 +447,17 @@ public class Client implements ClientInterface {
                 }
                 break;
             }
-            case "GetFilesUnderPathResponse": {
+            case "sm-getfilesunderpathresponse": {
                 mTempFilesUnderNode = GetFilesUnderNodeResponse(m);
                 break;
             }
-            case "ReadFileResponse":
+            case "sm-readfileresponse":
                 ReadFileResponse(m);
                 break;
-            case "TestPathResponse":
+            case "sm-testpathresponse":
                 TestPathResponse(m);
                 break;
-            case "LogicalFileCountResponse":
+            case "sm-logicalfilecountresponse":
                 LogicalFileCountResponse(m);
                 break;
         }
