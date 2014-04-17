@@ -508,8 +508,8 @@ public class ChunkServer {
             String filename = input.ReadString();
             int numReplicas = input.ReadInt();
             String[] replicaInfo = new String[numReplicas];
-            for (String s : replicaInfo) {
-                s = input.ReadString();
+            for(int i = 0; i < replicaInfo.length; ++i ) {
+                replicaInfo[i] = input.ReadString();
             }
             int dataSize = input.ReadInt();
             byte[] inData = input.ReadData(dataSize);
