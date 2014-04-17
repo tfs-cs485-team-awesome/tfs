@@ -5,8 +5,8 @@
  */
 package tfs.src.client;
 
-import java.net.*;
 import java.io.*;
+import java.net.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -14,24 +14,31 @@ import java.nio.file.StandardOpenOption;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Stack;
+import tfs.util.FileNode;
 import tfs.util.Message;
 import tfs.util.MySocket;
-import tfs.util.FileNode;
+import tfs.util.MySocketOnline;
+import tfs.util.ChunkQueryRequest;
 
 /**
  *
  * @author laurencewong
  */
 public class Client implements ClientInterface {
-
+    
     Stack<String> mCurrentPath;
     String mServerIp;
     String sentence = "";
     int mServerPortNum;
     MySocket serverSocket;
+    ArrayList<MySocket> mChunkServerSockets;
+    ArrayDeque<ChunkQueryRequest> mPendingChunkQueries;
+    ArrayDeque<Message> mPendingMessages;
 
     //TEMP CODE
     String[] mTempFilesUnderNode;
@@ -48,13 +55,16 @@ public class Client implements ClientInterface {
             System.out.println("Server information " + mServerInfo + " is in wrong format");
             return;
         }
-
+        
         mServerIp = parts[0];
         mServerPortNum = Integer.valueOf(parts[1]);
         mCurrentPath = new Stack<>();
         mCurrentPath.add("");
+        mChunkServerSockets = new ArrayList<>();
+        mPendingChunkQueries = new ArrayDeque<>();
+        mPendingMessages = new ArrayDeque<>();
     }
-
+    
     public void InitConnectionWithServer(MySocket inSocket) {
         try {
             System.out.println("Telling server that I am a client");
@@ -66,11 +76,20 @@ public class Client implements ClientInterface {
             System.out.println(ioExcept.getMessage());
         }
     }
+    
+    public ChunkQueryRequest GetRequestWithFilename(String fileName) {
+        for (ChunkQueryRequest cqr : mPendingChunkQueries) {
+            if (cqr.GetName().equalsIgnoreCase(fileName)) {
+                return cqr;
+            }
+        }
+        return null;
+    }
 
     /**
      *
      */
-    public boolean ReceiveMessage() throws IOException {
+    public boolean ReceiveMessage() throws IOException, UnknownHostException {
         if (serverSocket.hasData()) {
             Message fromServer = new Message(serverSocket.ReadBytes());
             while (!fromServer.isFinished()) {
@@ -79,12 +98,20 @@ public class Client implements ClientInterface {
             }
             return true;
         }
+        for (MySocket chunkSocket : mChunkServerSockets) {
+            if (chunkSocket.hasData()) {
+                Message fromChunk = new Message(chunkSocket.ReadBytes());
+                while (!fromChunk.isFinished()) {
+                    ParseChunkInput(fromChunk);
+                }
+            }
+        }
         return false;
     }
-
+    
     public boolean SendMessage() throws IOException {
         Message toServer = new Message();
-
+        
         if (!sentence.isEmpty()) {
             String[] sentenceTokenized = sentence.split(" ");
             if (ParseUserInput(sentenceTokenized, toServer)) {
@@ -93,16 +120,27 @@ public class Client implements ClientInterface {
                 return true;
             }
         }
-
+        while (!mPendingMessages.isEmpty()) {
+            mPendingMessages.pop().Send();
+        }
         sentence = "";
         return false;
     }
-
+    
     public void ConnectToServer() throws IOException {
         serverSocket = new MySocket(mServerIp, mServerPortNum);
         InitConnectionWithServer(serverSocket);
     }
-
+    
+    public MySocket GetChunkServerSocket(String serverInfo) {
+        for (MySocket ms : mChunkServerSockets) {
+            if (ms.GetID().equalsIgnoreCase(serverInfo)) {
+                return ms;
+            }
+        }
+        return null;
+    }
+    
     public void RunLoop() {
         String modifiedSentence = "";
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
@@ -110,9 +148,9 @@ public class Client implements ClientInterface {
         while (true) {
             try {
                 ConnectToServer();
-
+                
                 while (true) {
-
+                    
                     if (System.in.available() > 0) {
                         sentence = inFromUser.readLine();
                     }
@@ -136,7 +174,7 @@ public class Client implements ClientInterface {
             }
         }
     }
-
+    
     public boolean ParseUserInput(String[] inStrings, Message toServer) {
         String command = inStrings[0];
         switch (command.toLowerCase()) {
@@ -176,12 +214,14 @@ public class Client implements ClientInterface {
                 return false;
             case "logicalfilecount":
                 return ParseLogicalFileCount(inStrings, toServer);
+            case "stream":
+                return ParseStreamToFile(inStrings, toServer);
             default:
                 System.out.println("Unknown command" + inStrings[0]);
                 return false;
         }
     }
-
+    
     public String GetCurrentPath() {
         String returnString = "";
         for (String s : mCurrentPath) {
@@ -189,7 +229,44 @@ public class Client implements ClientInterface {
         }
         return returnString;
     }
+    
+    public boolean ParseStreamToFile(String[] inString, Message toServer) {
+        //stream <text you're streaming> filename chunkNum
 
+        if (inString.length < 3) {
+            System.out.println("Too few arguments");
+            return false;
+        }
+        
+        String giantString = new String();
+        for (String s : inString) {
+            giantString += " " + s;
+        }
+        if (giantString.contains("\"") && !(giantString.indexOf("\"") == giantString.lastIndexOf("\"")) && !giantString.endsWith("\"")) {
+            String textToStream = giantString.substring(giantString.indexOf("\"") + 1, giantString.lastIndexOf("\""));
+            String[] newInString = new String[3];
+            newInString[0] = inString[0]; //should be stream
+            newInString[1] = textToStream;
+            newInString[2] = inString[inString.length - 1];
+            inString = newInString;
+        }
+        
+        if (inString.length != 3) {
+            System.out.println("Invalid number of parameters");
+            return false;
+        }
+        
+        ChunkQueryRequest newQuery = new ChunkQueryRequest(inString[2], ChunkQueryRequest.QueryType.APPEND);
+        newQuery.PutData(inString[1].getBytes());
+        mPendingChunkQueries.push(newQuery);
+
+        //parse quotes if they exist
+        toServer.WriteString(inString[0]);
+        toServer.WriteString(inString[2]);
+        return true;
+        
+    }
+    
     public boolean ParseLogicalFileCount(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of parameters");
@@ -199,7 +276,7 @@ public class Client implements ClientInterface {
         toServer.WriteString(inString[1]);
         return true;
     }
-
+    
     public boolean ParseTestPath(String[] inString, Message toServer) {
         if (inString.length != 2) {
             return false;
@@ -218,17 +295,17 @@ public class Client implements ClientInterface {
         mCurrentPath.push(inString[1]);
         return true;
     }
-
+    
     public boolean ParseFilesUnderNode(String[] inString, Message toServer) {
         if (inString.length != 2) {
-
+            
             return false;
         }
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
         return true;
     }
-
+    
     public boolean ParseGetNode(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
@@ -238,7 +315,7 @@ public class Client implements ClientInterface {
         toServer.WriteString(inString[1]);
         return true;
     }
-
+    
     public boolean ParseWriteStringToFile(String[] inString, Message toServer) {
         //cmd filename len data
         if (inString.length != 4) {
@@ -246,9 +323,9 @@ public class Client implements ClientInterface {
             return false;
         }
         toServer.WriteString(inString[0]);
-
+        
         toServer.WriteString(inString[1]);
-
+        
         int sizeOfData = 0;
         if (!inString[2].matches("[0-9]+")) {
             System.out.println("Invalid argument type");
@@ -263,19 +340,20 @@ public class Client implements ClientInterface {
         for (int i = 0; i < sizeOfData; ++i) {
             dataToWrite[0] = (byte) inString[3].charAt(i);
             toServer.AppendData(dataToWrite);
-
+            
         }
         return true;
     }
-
+    
     public boolean ParseAppendFileToFile(String[] inString, Message toServer) {
-        //cmd local remote
+        //cmd local remote 
         if (inString.length != 3) {
             System.out.println("Invalid number of arguments");
             return false;
         }
+        
         toServer.WriteString(inString[0]);
-
+        
         toServer.WriteString(inString[2]);
 
         //it's a file
@@ -285,17 +363,21 @@ public class Client implements ClientInterface {
             byte[] data = Files.readAllBytes(filePath);
             toServer.WriteInt(data.length);
             toServer.AppendData(data);
-
+            
+            ChunkQueryRequest newQuery = new ChunkQueryRequest(inString[2], ChunkQueryRequest.QueryType.APPEND);
+            newQuery.PutData(data);
+            mPendingChunkQueries.push(newQuery);
+            
         } catch (IOException ie) {
             System.out.println("Unable to read local file");
             return false;
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
-
+        
         return true;
     }
-
+    
     public boolean ParseWriteToFile(String[] inString, Message toServer) {
         //cmd localfile remotefile
         if (inString.length != 3) {
@@ -303,7 +385,7 @@ public class Client implements ClientInterface {
             return false;
         }
         toServer.WriteString(inString[0]);
-
+        
         toServer.WriteString(inString[2]);
 
         //it's a file
@@ -313,17 +395,17 @@ public class Client implements ClientInterface {
             byte[] data = Files.readAllBytes(filePath);
             toServer.WriteInt(data.length);
             toServer.AppendData(data);
-
+            
         } catch (IOException ie) {
             System.out.println("Unable to read local file");
             return false;
         } catch (Exception e) {
             System.out.println(e.getMessage());
         }
-
+        
         return true;
     }
-
+    
     public boolean ParseReadFile(String[] inString, Message toServer) {
         //cmd remotefilename localfilename
 
@@ -331,20 +413,24 @@ public class Client implements ClientInterface {
             System.out.println("Invalid number of arguments");
             return false;
         }
-
+        
         File tempFile = new File(inString[2]);
         if (tempFile.exists()) {
             System.out.println("Local file " + inString[2] + " already exists.  Aborting");
             return false;
         }
-
+        
         toServer.WriteString(inString[0]);
         toServer.WriteString(inString[1]);
-        toServer.WriteString(inString[2]);
-
+        //toServer.WriteString(inString[2]);
+        
+        ChunkQueryRequest newChunkQueryRequest = new ChunkQueryRequest(inString[1], ChunkQueryRequest.QueryType.READ);
+        newChunkQueryRequest.PutData(inString[2].getBytes());
+        mPendingChunkQueries.push(newChunkQueryRequest);
+        
         return true;
     }
-
+    
     public boolean ParseSeekFile(String[] inString, Message toServer) {
         //cmd filename offset len
 
@@ -353,9 +439,9 @@ public class Client implements ClientInterface {
             return false;
         }
         toServer.WriteString(inString[0]);
-
+        
         toServer.WriteString(inString[1]);
-
+        
         int sizeOfData = 0;
         if (!inString[2].matches("[0-9]+")) {
             System.out.println("Invalid argument type");
@@ -364,7 +450,7 @@ public class Client implements ClientInterface {
             toServer.WriteInt(Integer.valueOf(inString[2]));
             sizeOfData = Integer.valueOf(inString[2]);
         }
-
+        
         if (!inString[3].matches("[0-9]+")) {
             System.out.println("Invalid argument type");
             return false;
@@ -373,14 +459,14 @@ public class Client implements ClientInterface {
         }
         return true;
     }
-
+    
     public boolean ParseListFiles(String[] inString, Message toServer) {
         if (inString.length > 2) {
             System.out.println("Invalid number of arguments");
             return false;
         }
         toServer.WriteString(inString[0]);
-
+        
         if (inString.length == 1) {
             toServer.WriteString(GetCurrentPath());
         } else {
@@ -388,7 +474,7 @@ public class Client implements ClientInterface {
         }
         return true;
     }
-
+    
     public boolean ParseDeleteFile(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
@@ -398,7 +484,7 @@ public class Client implements ClientInterface {
         toServer.WriteString(inString[1]);
         return true;
     }
-
+    
     public boolean ParseCreateNewFile(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
@@ -408,7 +494,7 @@ public class Client implements ClientInterface {
         toServer.WriteString(inString[1]);
         return true;
     }
-
+    
     public boolean ParseCreateNewDir(String[] inString, Message toServer) {
         if (inString.length != 2) {
             System.out.println("Invalid number of arguments");
@@ -418,17 +504,16 @@ public class Client implements ClientInterface {
         toServer.WriteString(inString[1]);
         return true;
     }
-
-    public void ParseServerInput(Message m) throws IOException {
+    
+    public void ParseServerInput(Message m) throws IOException, UnknownHostException {
         String input = m.ReadString();
         switch (input.toLowerCase()) {
             case "print":
                 //print out a debug statement
                 System.out.println(m.ReadString());
                 break;
-            case "chunkinfo":
-                ContactChunkServer(m);
-                break;
+            case "sm-appendresponse":
+                SMAppendFileResponse(m);
             case "sm-writefileresponse":
                 WriteFileResponse(m);
                 break;
@@ -440,7 +525,7 @@ public class Client implements ClientInterface {
                 try {
                     mTempFileNode = new FileNode(false);
                     mTempFileNode.ReadFromMessage(m);
-
+                    
                 } catch (IOException ioe) {
                     System.out.println("Problem deserializing file node");
                     System.out.println(ioe.getMessage());
@@ -452,7 +537,7 @@ public class Client implements ClientInterface {
                 break;
             }
             case "sm-readfileresponse":
-                ReadFileResponse(m);
+                SMReadFileResponse(m);
                 break;
             case "sm-testpathresponse":
                 TestPathResponse(m);
@@ -460,22 +545,85 @@ public class Client implements ClientInterface {
             case "sm-logicalfilecountresponse":
                 LogicalFileCountResponse(m);
                 break;
+            default:
+                System.out.println("Client received unknown command: " + input + " from server");
         }
     }
-
+    
+    public void SMAppendFileResponse(Message m) throws UnknownHostException, IOException {
+        //filename, primary info, num replicas, replicainfo
+        String filename = m.ReadString();
+        String primaryChunkInfo = m.ReadString();
+        int numReplicas = m.ReadInt();
+        String[] replicaInfo = new String[numReplicas];
+        for (int i = 0; i < numReplicas; ++i) {
+            replicaInfo[i] = m.ReadString();
+        }
+        
+        MySocket newChunkServerSocket = GetChunkServerSocket(primaryChunkInfo);
+        if (newChunkServerSocket == null) {
+            newChunkServerSocket = new MySocket(primaryChunkInfo);
+            InitConnectionWithServer(newChunkServerSocket);
+            mChunkServerSockets.add(newChunkServerSocket);
+        }
+        
+        Message toPrimaryChunkServer = new Message();
+        toPrimaryChunkServer.WriteString("appendfile");
+        toPrimaryChunkServer.WriteString(filename);
+        toPrimaryChunkServer.WriteInt(numReplicas);
+        for (int i = 0; i < numReplicas; ++i) {
+            toPrimaryChunkServer.WriteString(replicaInfo[i]);
+        }
+        toPrimaryChunkServer.WriteInt(GetRequestWithFilename(filename).GetData().length);
+        toPrimaryChunkServer.AppendData(GetRequestWithFilename(filename).GetData());
+        toPrimaryChunkServer.SetSocket(newChunkServerSocket);
+        mPendingMessages.push(toPrimaryChunkServer);
+        
+    }
+    
+    public void SMWriteFileResponse(Message m) throws UnknownHostException, IOException {
+        String filename = m.ReadString();
+        String primaryChunkInfo = m.ReadString();
+        int numReplicas = m.ReadInt();
+        String[] replicaInfo = new String[numReplicas];
+        for (int i = 0; i < numReplicas; ++i) {
+            replicaInfo[i] = m.ReadString();
+        }
+        
+        MySocket newChunkServerSocket = GetChunkServerSocket(primaryChunkInfo);
+        if (newChunkServerSocket == null) {
+            newChunkServerSocket = new MySocket(primaryChunkInfo);
+            InitConnectionWithServer(newChunkServerSocket);
+        }
+        
+        mChunkServerSockets.add(newChunkServerSocket);
+        
+        Message toPrimaryChunkServer = new Message();
+        toPrimaryChunkServer.WriteString("appendfile");
+        toPrimaryChunkServer.WriteString(filename);
+        toPrimaryChunkServer.WriteInt(numReplicas);
+        for (int i = 0; i < numReplicas; ++i) {
+            toPrimaryChunkServer.WriteString(replicaInfo[i]);
+        }
+        toPrimaryChunkServer.WriteInt(GetRequestWithFilename(filename).GetData().length);
+        toPrimaryChunkServer.AppendData(GetRequestWithFilename(filename).GetData());
+        toPrimaryChunkServer.SetSocket(newChunkServerSocket);
+        mPendingMessages.push(toPrimaryChunkServer);
+    }
+    
     public void LogicalFileCountResponse(Message m) {
         //numfiles filesize filedata...
         int numFiles = m.ReadInt();
         System.out.println("Number of files in haystack: " + numFiles);
     }
-
+    
     public void TestPathResponse(Message m) {
         int result = m.ReadInt();
         if (result != 1) {
             mCurrentPath.pop();
         }
     }
-
+    
     public String[] GetFilesUnderNodeResponse(Message m) {
         int numStrings = m.ReadInt();
         String[] returnStrings = new String[numStrings];
@@ -484,60 +632,86 @@ public class Client implements ClientInterface {
         }
         return returnStrings;
     }
-
-    public void ContactChunkServer(Message m) {
-        MySocket chunkServerSocket = null;
-        String chunkServerInfo = m.ReadString();
-        System.out.println("Contacting chunk server with param " + chunkServerInfo);
-        if (chunkServerInfo.contentEquals("localhost:6999")) {
-            String[] splitInput = chunkServerInfo.split(":");
-            try {
-                Message toChunkServer = new Message();
-                System.out.println("Connecting to chunkServer at: " + chunkServerInfo);
-                chunkServerSocket = new MySocket(splitInput[0], Integer.valueOf(splitInput[1]));
-
-                InitConnectionWithServer(chunkServerSocket);
-
-                toChunkServer.WriteString("ReadFile");
-                chunkServerSocket.WriteMessage((toChunkServer));
-
-                chunkServerSocket.close();
-            } catch (Exception e) {
-                System.out.println("Problem writing byte");
-                System.out.println(e.getMessage());
-            }
-        }
-    }
-
-    public void ReadFileResponse(Message m) throws IOException {
+    
+    public void SMReadFileResponse(Message m) throws IOException {
+        System.out.println("Got smreadfileresponse");
         String filename = m.ReadString();
-        int bytesToRead = m.ReadInt();
-        byte[] bytesRead = m.ReadData(bytesToRead);
-        WriteLocalFile(filename, bytesRead);
-    }
+        String primaryChunkInfo = m.ReadString();
+        int numReplicas = m.ReadInt();
+        String[] replicaInfo = new String[numReplicas];
+        for (int i = 0; i < numReplicas; ++i) {
+            replicaInfo[i] = m.ReadString();
+        }
+        
+        MySocket newChunkServerSocket = GetChunkServerSocket(primaryChunkInfo);
+        if (newChunkServerSocket == null) {
+            newChunkServerSocket = new MySocket(primaryChunkInfo);
+            InitConnectionWithServer(newChunkServerSocket);
+            mChunkServerSockets.add(newChunkServerSocket);
+        }
+        
+        Message toPrimaryChunkServer = new Message();
+        toPrimaryChunkServer.WriteString("readfile");
+        toPrimaryChunkServer.WriteString(GetRequestWithFilename(filename).GetName());
+        toPrimaryChunkServer.WriteInt(numReplicas);
+        for (int i = 0; i < numReplicas; ++i) {
+            toPrimaryChunkServer.WriteString(replicaInfo[i]);
+        }
+        toPrimaryChunkServer.SetSocket(newChunkServerSocket);
+        mPendingMessages.push(toPrimaryChunkServer);
 
+        /*
+         String filename = m.ReadString();
+         int bytesToRead = m.ReadInt();
+         byte[] bytesRead = m.ReadData(bytesToRead);
+         WriteLocalFile(filename, bytesRead);*/
+    }
+    
     public void WriteFileResponse(Message m) {
         // if master returns chunk to be created, contact chunk server to create chunks
 
         // after getting chunks, append to end of chunk
     }
-
+    
     public void SeekFileResponse(Message m) throws IOException {
         String filename = m.ReadString();
         int bytesToRead = m.ReadInt();
         byte[] bytesRead = m.ReadData(bytesToRead);
         WriteLocalFile(filename, bytesRead);
     }
-
+    
+    public void ParseChunkInput(Message m) throws IOException, UnknownHostException {
+        String input = m.ReadString();
+        switch (input) {
+            case "cs-readfileresponse":
+                CSReadFileResponse(m);
+                break;
+        }
+    }
+    
+    public void CSReadFileResponse(Message m) throws IOException {
+        System.out.println("Got csreadfileresponse");
+        String filename = m.ReadString();
+        ChunkQueryRequest chunkQuery = GetRequestWithFilename(filename);
+        if (chunkQuery == null) {
+            System.out.println("Query from chunk server did not match any on this client");
+            return;
+        }
+        String localFilename = new String(chunkQuery.GetData());
+        int dataSize = m.ReadInt();
+        byte[] data = m.ReadData(dataSize);
+        WriteLocalFile(localFilename, data);
+    }
+    
     @Override
     public void CreateFile(String fileName) throws IOException {
         sentence = "touch " + fileName;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
-
+        
     }
-
+    
     @Override
     public void CreateDir(String dirName) throws IOException {
         sentence = "mkdir " + dirName;
@@ -545,7 +719,7 @@ public class Client implements ClientInterface {
             while (!ReceiveMessage());
         }
     }
-
+    
     @Override
     public void DeleteFile(String fileName) throws IOException {
         sentence = "rm " + fileName;
@@ -553,15 +727,16 @@ public class Client implements ClientInterface {
             while (!ReceiveMessage());
         }
     }
-
+    
     @Override
     public void ListFile(String path) throws IOException {
         sentence = "ls " + path;
+        System.out.println(sentence);
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
     }
-
+    
     @Override
     public String[] GetListFile(String path) throws IOException {
         sentence = "GetFilesUnderPath " + path;
@@ -569,7 +744,7 @@ public class Client implements ClientInterface {
         while (!ReceiveMessage());
         return mTempFilesUnderNode;
     }
-
+    
     @Override
     public void ReadFile(String remotefilename, String localfilename) throws IOException {
         sentence = "read " + remotefilename + " " + localfilename;
@@ -577,7 +752,7 @@ public class Client implements ClientInterface {
             while (!ReceiveMessage());
         }
     }
-
+    
     @Override
     public void WriteFile(String localfilename, String remotefilename) throws IOException {
         sentence = "write " + localfilename + " " + remotefilename;
@@ -586,7 +761,7 @@ public class Client implements ClientInterface {
         }
         //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
-
+    
     @Override
     public void AppendFile(String localfilename, String remotefilename) throws IOException {
         sentence = "append " + localfilename + " " + remotefilename;
@@ -594,7 +769,7 @@ public class Client implements ClientInterface {
             while (!ReceiveMessage());
         }
     }
-
+    
     @Override
     public FileNode GetAtFilePath(String path) throws IOException {
         sentence = "GetNode " + path;
@@ -603,7 +778,7 @@ public class Client implements ClientInterface {
         }
         return mTempFileNode;
     }
-
+    
     @Override
     public void WriteLocalFile(String fileName, byte[] data) throws IOException {
         Path filePath = Paths.get(fileName);
@@ -612,14 +787,14 @@ public class Client implements ClientInterface {
         out.close();
         System.out.println("Finished writing file");
     }
-
+    
     @Override
     public void CountFiles(String remotename) throws IOException {
         sentence = "LogicalFileCount " + remotename;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
-
+        
     }
-
+    
 }

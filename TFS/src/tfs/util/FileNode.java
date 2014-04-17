@@ -24,20 +24,81 @@ public class FileNode implements Serializable {
         }
     }
 
+    public class ChunkMetadata {
+
+        ArrayList<String> mChunkReplicaLocations;
+        String mChunkLocation;
+
+        public ChunkMetadata(String inLocation) {
+            mChunkReplicaLocations = new ArrayList<>();
+            mChunkLocation = inLocation;
+        }
+
+        public String GetPrimaryLocation() {
+            return mChunkLocation;
+        }
+
+        public ArrayList<String> GetReplicaLocations() {
+            return mChunkReplicaLocations;
+        }
+    }
+
     /**
      * Metadata for each file Holds the list of chunks that make up a file
      */
     public class FileMetadata {
 
-        public ArrayList<String> mChunkLocations; //index by chunk nubmer
+        ArrayList<ChunkMetadata> mChunks; //index by chunk nubmer
 
-        public FileMetadata() {
-            mChunkLocations = new ArrayList<>();
+        FileMetadata() {
+            mChunks = new ArrayList<>();
+        }
+        
+            
+        public int GetNumChunks() {
+            return mChunks.size();
         }
     }
+
+    public String GetChunkLocationAtIndex(int inIndex) {
+        if (inIndex > mFileMetadata.mChunks.size() || inIndex < 0) {
+            System.out.println("Attempted to get chunk location at invalid index: " + inIndex);
+
+            return null;
+        }
+        return mFileMetadata.mChunks.get(inIndex).mChunkLocation;
+    }
     
+    public boolean DoesChunkExistAtLocation(int inIndex, String inLocation) {
+        ChunkMetadata chunkAtIndex = mFileMetadata.mChunks.get(inIndex);
+        if(chunkAtIndex.GetPrimaryLocation().equalsIgnoreCase(inLocation)) {
+            return true;
+        }
+        for(String s : chunkAtIndex.GetReplicaLocations()) {
+            if(s.equalsIgnoreCase(inLocation)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public ChunkMetadata GetChunkDataAtIndex(int inIndex) {
+        if (inIndex >= mFileMetadata.mChunks.size() || inIndex < 0) {
+            System.out.println("Attempted to get chunk data at invalid index: " + inIndex);
+
+            return null;
+        }
+        return mFileMetadata.mChunks.get(inIndex);
+    }
+
+
     public void AddChunkAtLocation(String inLocation) {
-        mFileMetadata.mChunkLocations.add(inLocation);
+        String chunkName = inLocation;
+        mFileMetadata.mChunks.add(new ChunkMetadata(chunkName));
+    }
+    
+    public void AddReplicaAtLocation(int inIndex, String inLocation) {
+        mFileMetadata.mChunks.get(inIndex).mChunkReplicaLocations.add(inLocation);
     }
 
     public void WriteToMessage(Message m) throws IOException {
@@ -66,17 +127,17 @@ public class FileNode implements Serializable {
         mIsDirectory = false;
         mReadLock = false;
         mWriteLock = false;
-        
+
         bool = m.ReadInt();
-        if(bool == 1) {
+        if (bool == 1) {
             mIsDirectory = true;
         }
         bool = m.ReadInt();
-        if(bool == 1) {
+        if (bool == 1) {
             mReadLock = true;
         }
         bool = m.ReadInt();
-        if(bool == 1) {
+        if (bool == 1) {
             mWriteLock = true;
         }
     }

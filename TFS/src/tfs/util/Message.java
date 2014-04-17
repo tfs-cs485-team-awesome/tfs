@@ -189,4 +189,7 @@ public class Message implements Serializable {
     public void ResetReadHead() {
         mReadHead = 0;
     }
+    public void ResetWriteHead() {
+        mWriteHead = 0;
+    }
 }

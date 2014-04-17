@@ -22,15 +22,27 @@ public class MySocket {
     private BufferedReader mDataReader;
     private String mSocketID; // is the ip:port
 
-    public MySocket(String inIp, int inPort) throws UnknownHostException, IOException {
+   public MySocket(String inIp, int inPort) throws UnknownHostException, IOException {
+        
         mSocket = new Socket(inIp, inPort);
         mDataOutput = new DataOutputStream(mSocket.getOutputStream());
         mDataInput = new DataInputStream(mSocket.getInputStream());
         mDataReader = new BufferedReader(new InputStreamReader(mDataInput));
         mSocketID = inIp + ":" + inPort;
+       
+    }
+   
+    public MySocket(String inInfo) throws UnknownHostException, IOException {
+        String[] info = inInfo.split(":");
+        mSocket = new Socket(info[0], Integer.valueOf(info[1]));
+        mDataOutput = new DataOutputStream(mSocket.getOutputStream());
+        mDataInput = new DataInputStream(mSocket.getInputStream());
+        mDataReader = new BufferedReader(new InputStreamReader(mDataInput));
+        mSocketID = inInfo;
     }
 
     public MySocket(Socket inSocket) throws IOException {
+        
         mSocket = inSocket;
         mDataOutput = new DataOutputStream(mSocket.getOutputStream());
         mDataInput = new DataInputStream(mSocket.getInputStream());
@@ -38,19 +50,27 @@ public class MySocket {
         
         String socketInetAddr = inSocket.getInetAddress().toString();
         mSocketID = socketInetAddr.substring(1, socketInetAddr.length()) + ":" + inSocket.getPort();
+                
+    }
+    
+    public void SetID(String inID) {
+        mSocketID = inID;
     }
     
     public String GetID() {
+        
         return mSocketID;
     }
 
     public void WriteMessage(Message m) throws IOException {
+        
         //Write internal data
         byte[] messageBytes = m.ReadData();
         WriteBytes(messageBytes);
     }
 
     public void WriteBytes(byte[] inBytes) throws IOException {
+        
         WriteBytes(inBytes, 0, inBytes.length);
     }
 

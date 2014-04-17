@@ -30,14 +30,16 @@ public class ServerMaster {
     ServerSocket mListenSocket;
     ArrayList<MySocket> mClients;
     ArrayList<MySocket> mChunkServers;
-    ArrayDeque<Message> mPendingReplies; //messages to send out
+    ArrayDeque<Message> mPendingMessages; //messages to send out
+    
+    final int NUM_REPLICAS = 3;
 
     public void Init() {
         mFileRoot = new FileNode(false);
         mFileRoot.mName = "/";
         mClients = new ArrayList<MySocket>();
         mChunkServers = new ArrayList<MySocket>();
-        mPendingReplies = new ArrayDeque<>();
+        mPendingMessages = new ArrayDeque<>();
     }
 
     public ServerMaster(int inSocketNum) {
@@ -80,7 +82,9 @@ public class ServerMaster {
                     case "ChunkServer":
                         synchronized (mChunkServers) {
                             mChunkServers.add(newConnection);
-                            System.out.println("Adding new chunkserver");
+                            int ChunkServerListenPort = m.ReadInt();
+                            newConnection.SetID(newConnection.GetID().split(":")[0] + ":" + ChunkServerListenPort);
+                            System.out.println("Adding new chunkserver with ID : " + newConnection.GetID());
                         }
                         break;
                     default:
@@ -117,7 +121,7 @@ public class ServerMaster {
                                 Message messageReceived = new Message(clientSocket.ReadBytes());
                                 Message messageSending = ParseClientInput(messageReceived);
                                 messageSending.SetSocket(clientSocket);
-                                mPendingReplies.push(messageSending);
+                                mPendingMessages.push(messageSending);
                             }
                         }
                     }
@@ -126,9 +130,8 @@ public class ServerMaster {
 
                         }
                     }
-                    while(!mPendingReplies.isEmpty())
-                    {
-                        mPendingReplies.pop().Send();
+                    while (!mPendingMessages.isEmpty()) {
+                        mPendingMessages.pop().Send();
                     }
                     this.sleep(100);
                 } catch (Exception e) {
@@ -139,16 +142,16 @@ public class ServerMaster {
 
             }
         }
-        
+
         public MySocket GetSocket(String inSocketID) {
             //most likely chunk socket, so search those first
-            for(MySocket s : mMaster.mChunkServers) {
-                if(s.GetID().compareTo(inSocketID) == 0) {
+            for (MySocket s : mMaster.mChunkServers) {
+                if (s.GetID().compareTo(inSocketID) == 0) {
                     return s;
                 }
             }
-            for(MySocket s : mMaster.mClients) {
-                if(s.GetID().compareTo(inSocketID) == 0) {
+            for (MySocket s : mMaster.mClients) {
+                if (s.GetID().compareTo(inSocketID) == 0) {
                     return s;
                 }
             }
@@ -330,7 +333,8 @@ public class ServerMaster {
                     break;
                 case "readfile":
                 case "read":
-                    ReadFile(m.ReadString(), m.ReadString(), outputToClient);
+                    //ReadFile(m.ReadString(), m.ReadString(), outputToClient);
+                    ReadFile(m.ReadString(), outputToClient);
                     break;
                 case "writefile":
                 case "write": {
@@ -340,12 +344,19 @@ public class ServerMaster {
                     WriteFile(name, data, outputToClient);
                     break;
                 }
+                case "stream":
+                    AppendFile(m.ReadString(), outputToClient);
+                    ///AppendFile(m.ReadString(), m.ReadString().getBytes(), outputToClient);
+                    break;
                 case "append":
                 case "appendtofile":
-                    String name = m.ReadString();
-                    int lengthToRead = m.ReadInt();
-                    byte[] data = m.ReadData(lengthToRead);
-                    AppendFile(name, data, outputToClient);
+                    AppendFile(m.ReadString(), outputToClient);
+                    /*
+                     String name = m.ReadString();
+                     int lengthToRead = m.ReadInt();
+                     byte[] data = m.ReadData(lengthToRead);
+                     AppendFile(name, data, outputToClient);
+                     */
                     break;
                 case "getnode": {
                     String path = m.ReadString();
@@ -371,12 +382,43 @@ public class ServerMaster {
                 case "logicalfilecount":
                     LogicalFileCount(m.ReadString(), outputToClient);
                     break;
-                    
 
             }
             System.out.println("Finished client input");
             outputToClient.WriteDebugStatement("Finished client input");
             return outputToClient;
+        }
+
+        public void AssignChunkServerToFile(String fileName) {
+            //make a random chunk server the location of this new file
+
+            /*FileNode file = GetAtPath(fileName);
+            if (file == null) {
+                System.out.println("File does not exist; unable to assign chunk server to file");
+            }
+            */
+            FileNode node = GetAtPath(fileName);
+            if (!mChunkServers.isEmpty()) {
+                Random newRandom = new Random();
+                MySocket chunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
+                node.AddChunkAtLocation(chunkServerSocket.GetID());
+                Message newChunkMessage = new Message();
+                newChunkMessage.WriteString("sm-makenewfile");
+                newChunkMessage.WriteString(fileName);
+                newChunkMessage.SetSocket(chunkServerSocket);
+                mPendingMessages.push(newChunkMessage);
+                for(int i = 0; i < (mChunkServers.size() - 1 < NUM_REPLICAS ? mChunkServers.size() - 1 : NUM_REPLICAS) ; ++i ) {
+                    MySocket newChunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
+                    while(node.DoesChunkExistAtLocation(0, newChunkServerSocket.GetID())) {
+                        newChunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
+                    }
+                    System.out.println("Adding replica at server: " + newChunkServerSocket.GetID());
+                    node.AddReplicaAtLocation(0, newChunkServerSocket.GetID());
+                }
+            } else {
+                System.out.println("No Chunk servers connected to server");
+            }
+
         }
 
         public void GetValidityOfPath(String path, Message m) {
@@ -571,11 +613,9 @@ public class ServerMaster {
             parentNode.mChildren.add(newFile);
             System.out.println("Finished creating new dir");
             m.WriteDebugStatement("Finished creating new dir");
-            
+
             //make a random chunk server the location of this new file
-            Random newRandom = new Random();
-            String chunkServerInfo = mChunkServers.get(newRandom.nextInt() % mChunkServers.size()).GetID();
-            newFile.AddChunkAtLocation(chunkServerInfo);
+            AssignChunkServerToFile(name);
             return;
         }
 
@@ -605,6 +645,26 @@ public class ServerMaster {
             }
         }
 
+        public void ReadFile(String fileName, Message output) {
+            System.out.println("Sending back info for readfile");
+            FileNode fileNode = GetAtPath(fileName);
+            if (fileNode == null) {
+                System.out.println("File does not exist");
+                output.WriteDebugStatement("File does not exist");
+                return;
+            } else {
+                //TODO error check if the file.GetChunkDataAtIndex return null
+                FileNode.ChunkMetadata chunk = fileNode.GetChunkDataAtIndex(0);
+                output.WriteString("sm-readfileresponse");
+                output.WriteString(fileName);
+                output.WriteString(chunk.GetPrimaryLocation());
+                output.WriteInt(chunk.GetReplicaLocations().size());
+                for (String s : chunk.GetReplicaLocations()) {
+                    output.WriteString(s);
+                }
+            }
+        }
+
         public void ReadFile(String fileName, String clientfileName, Message output) {
             FileNode fileNode = GetAtPath(fileName);
             if (fileNode == null) {
@@ -625,7 +685,7 @@ public class ServerMaster {
                 output.WriteDebugStatement(ioe.getMessage());
             }
         }
-        
+
         public void LogicalFileCount(String fileName, Message output) {
             FileNode file = GetAtPath(fileName);
             if (file == null) {
@@ -663,16 +723,35 @@ public class ServerMaster {
             }
         }
 
+        public void AppendFile(String fileName, Message output) {
+            FileNode file = GetAtPath(fileName);
+            if (file == null) {
+                CreateNewFile(fileName, output);
+            }
+            //TODO error check if the file.GetChunkDataAtIndex return null
+            FileNode.ChunkMetadata chunk = file.GetChunkDataAtIndex(0);
+            output.WriteString("sm-appendresponse");
+            output.WriteString(fileName);
+            output.WriteString(chunk.GetPrimaryLocation());
+            output.WriteInt(chunk.GetReplicaLocations().size());
+            for (String s : chunk.GetReplicaLocations()) {
+                output.WriteString(s);
+            }
+
+            Message toChunkServer = new Message();
+            toChunkServer.WriteString("sm-makeprimary");
+            toChunkServer.WriteString(fileName);
+            toChunkServer.SetSocket(GetSocket(chunk.GetPrimaryLocation()));
+            //toChunkServer.Send();
+            mPendingMessages.push(toChunkServer);
+        }
+
         public void AppendFile(String fileName, byte[] data, Message output) {
             FileNode file = GetAtPath(fileName);
             if (file == null) {
                 CreateNewFile(fileName, output);
             }
-            
-            
 
-            
-            
             try {
                 fileName = fileName.replaceAll("/", ".");
                 Path filePath = Paths.get(fileName);
@@ -718,10 +797,11 @@ public class ServerMaster {
             CreateNewFile(fileName, output);
             file = GetAtPath(fileName);
             Message toChunkServer = new Message();
-            MySocket chunkServerSocket = GetSocket(file.mFileMetadata.mChunkLocations.get(0));
+            MySocket chunkServerSocket = GetSocket(file.GetChunkLocationAtIndex(0));
             toChunkServer.SetSocket(chunkServerSocket);
-            toChunkServer.WriteDebugStatement("SENDING TO CHUNK SERVER");
-            mPendingReplies.push(toChunkServer);
+            toChunkServer.WriteDebugStatement("Making primary");
+            toChunkServer.WriteString("sm-makeprimary");
+            mPendingMessages.push(toChunkServer);
             try {
                 fileName = fileName.replaceAll("/", ".");
                 Path filePath = Paths.get(fileName);
@@ -738,14 +818,14 @@ public class ServerMaster {
 
         }
 
-        public void DeleteDirectory(String path, Message m){
+        public void DeleteDirectory(String path, Message m) {
             // check for the first "/"
             int firstIndex = path.indexOf("/");
             if (firstIndex != 0) {
                 path = "/" + path;
             }
             // check if the path is the root
-            if (path.equals("/")){
+            if (path.equals("/")) {
                 System.out.println("Cannot delete root folder");
                 m.WriteDebugStatement("Cannot delete root folder");
                 return;
@@ -797,11 +877,10 @@ public class ServerMaster {
             allDirs.add(path);
             // find all children in the directory
             for (FileNode child : file.mChildren) {
-                if(child.mIsDirectory){
+                if (child.mIsDirectory) {
                     allDirs.add(path + "/" + child.mName);
                     RecursiveDeleteDirectory(path + "/" + child.mName, child, allDirs, allFiles, m);
-                }
-                else {
+                } else {
                     allFiles.add(path + "/" + child.mName);
                 }
             }
@@ -819,20 +898,19 @@ public class ServerMaster {
             // remove link from parent node to this directory
             parentNode.mChildren.remove(file);
         }
-        
-        public void RecursiveDeleteDirectory(String path, FileNode file, ArrayList<String> allDirs, ArrayList<String> allFiles, Message m){
+
+        public void RecursiveDeleteDirectory(String path, FileNode file, ArrayList<String> allDirs, ArrayList<String> allFiles, Message m) {
             // delete all children in the directory
             for (FileNode child : file.mChildren) {
-                if(child.mIsDirectory){
+                if (child.mIsDirectory) {
                     allDirs.add(path + "/" + child.mName);
                     RecursiveDeleteDirectory(path + "/" + child.mName, child, allDirs, allFiles, m);
-                }
-                else {
+                } else {
                     allFiles.add(path + "/" + child.mName);
                 }
             }
         }
-        
+
         /**
          * Removes a given file from the parent's list of children
          *
