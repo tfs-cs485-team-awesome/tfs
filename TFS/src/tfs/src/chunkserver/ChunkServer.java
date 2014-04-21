@@ -21,16 +21,25 @@ import java.util.Timer;
 import java.util.TimerTask;
 import tfs.util.Message;
 import tfs.util.MySocket;
-import tfs.util.MySocketOnline;
+import tfs.util.ChunkPendingAppend;
+import tfs.util.HeartbeatSocket;
+import tfs.util.Callbackable;
 
 //MAX_CHUNK_SIZE = 67108864;
 /**
  *
  * @author laurencewong
  */
-public class ChunkServer {
+public class ChunkServer implements Callbackable {
 
     final int MAX_CHUNK_SIZE = 67108864; //64MB in bytes
+
+    @Override
+    public void Callback(String inParameter) {
+        synchronized (mSocketsToClose) {
+            mSocketsToClose.push(inParameter);
+        }
+    }
 
     //have chunks named: filename<chunk#>
     //for example: if the actual file is stories.txt and it has 3 chunks,
@@ -43,7 +52,9 @@ public class ChunkServer {
 
         public Chunk(String inName) throws IOException {
             inName = inName.replaceAll("/", ".");
+            System.out.println("inName = " + inName);
             mChunkFile = new File(inName);
+            System.out.println("inName absolute dir: " + mChunkFile.getAbsolutePath());
             mChunkFileName = inName;
             if (!mChunkFile.createNewFile()) {
                 //createNewFile returns false if file already exists
@@ -114,33 +125,9 @@ public class ChunkServer {
         }
     }
 
-    private abstract class PrimaryTimer extends TimerTask {
-
-        public String chunkFilename = null;
-
-        public PrimaryTimer(String filename) {
-            chunkFilename = filename;
-        }
-    }
-
-    private class ChunkAppendRequest {
-
-        boolean mIsPrimary; //whether or not I am the primary of this
-        ArrayList<String> mServers; //ID's of other servers servicing this request
-        //mServers will only have the primary ID if I am not the primary
-        int mSuccessfulServers; //number of servers that have replied with success
-        int mTotalResponses;
-        String mChunkName;
-        MySocket mClientSocket; //Reference to the socket of the client that wants
-        //the data
-
-        public ChunkAppendRequest(boolean isPrimaryServer, String inChunkName) {
-            mIsPrimary = isPrimaryServer;
-            mChunkName = inChunkName;
-            mServers = new ArrayList<>();
-        }
-    }
-
+    String[] mServerInfo;
+    String mListenPort;
+    String mID;
     ServerSocket mListenSocket;
     HashMap<String, Chunk> mChunks;
     MySocket mServerSocket;
@@ -148,19 +135,55 @@ public class ChunkServer {
     ArrayList<MySocket> mChunkServers;
     ArrayDeque<Message> mPendingMessages;
     ArrayList<Timer> mPrimaryTimers;
-    HashMap<String, ChunkAppendRequest> mChunkServices;
+    ArrayDeque<String> mSocketsToClose;
+    HashMap<String, ChunkPendingAppend> mChunkServices;
+    HeartbeatSocket mHeartbeatSocket;
 
-    public void InitConnectionWithServer(MySocket inSocket) {
+    public final String GetIP() throws IOException {
+        String ip = InetAddress.getLocalHost().toString();
+        ip = ip.substring(ip.indexOf("/") + 1);
+        return ip;
+    }
+
+    public void InitConnectionWithMasterServer(MySocket inSocket) {
         try {
             System.out.println("Telling server that I am a chunkserver");
             Message toServer = new Message();
             toServer.WriteString("ChunkServer");
             toServer.WriteInt(mListenSocket.getLocalPort());
             inSocket.WriteMessage(toServer);
+            //wait for response back with ID
+            while (!inSocket.hasData()) {
+            }
+            Message fromServer = new Message(inSocket.ReadBytes());
+            if (!fromServer.ReadString().equalsIgnoreCase("setid")) {
+                System.out.println("Did not get setid from server.  Shutting down");
+                System.exit(1);
+            } else {
+                mID = fromServer.ReadString();
+                mHeartbeatSocket = new HeartbeatSocket(mID, inSocket.GetID(), this);
+                mHeartbeatSocket.start();
+                System.out.println("Setting id to " + mID);
+            }
 
         } catch (IOException ioExcept) {
             System.out.println("Problem initializing connection with server");
             System.out.println(ioExcept.getMessage());
+        }
+    }
+
+    public void InitConnectionWithChunkServer(MySocket inSocket) {
+        try {
+            System.out.println("Telling chunkserver that I am a fellow chunkserver");
+            Message toServer = new Message();
+            toServer.WriteString("ChunkServer");
+            toServer.WriteString(mID);
+            toServer.WriteString(mHeartbeatSocket.GetIPAndPort());
+            inSocket.WriteMessage(toServer);
+
+        } catch (IOException ioe) {
+            System.out.println("Problem initializing connection with server");
+            System.out.println(ioe.getMessage());
         }
     }
 
@@ -170,7 +193,8 @@ public class ChunkServer {
         mChunkServers = new ArrayList<MySocket>();
         mPendingMessages = new ArrayDeque<>();
         mPrimaryTimers = new ArrayList<Timer>();
-        mChunkServices = new HashMap<String, ChunkAppendRequest>();
+        mChunkServices = new HashMap<String, ChunkPendingAppend>();
+        mSocketsToClose = new ArrayDeque<>();
     }
 
     /**
@@ -180,34 +204,68 @@ public class ChunkServer {
      */
     public ChunkServer(String inConfigurationInformation, String inPort) {
         Init();
-        String[] serverInformation = inConfigurationInformation.split(":");
-        if (serverInformation.length != 2) {
-            System.out.println("Server information " + serverInformation + " is in wrong format");
+        mServerInfo = inConfigurationInformation.split(":");
+        mListenPort = inPort;
+        if (mServerInfo.length != 2) {
+            System.out.println("Server information " + mServerInfo + " is in wrong format");
             return;
         }
-
         try {
-            mListenSocket = new ServerSocket(Integer.valueOf(inPort));
-            while (true) {
-                try {
-                    mServerSocket = new MySocket(serverInformation[0], Integer.valueOf(serverInformation[1]));
-                    break;
-                } catch (IOException e) {
-                    if (e.getMessage().contentEquals("Connection refused")) {
-                        System.out.println("Master Server is not online.  Attempting to reconnect in 3s");
-                        try {
-                            Thread.sleep(3000);
-                        } catch (InterruptedException e1) {
-                            System.out.println("Exception sleeping");
-                            System.out.println(e1.getMessage());
-                        }
+            mListenSocket = new ServerSocket(Integer.valueOf(mListenPort));
+        } catch (IOException ioe) {
+            System.out.println(ioe.getMessage());
+        }
+        ConnectToServerMaster();
+    }
+
+    public void ConnectToServerMaster() {
+        while (true) {
+            try {
+                mServerSocket = new MySocket(mServerInfo[0], Integer.valueOf(mServerInfo[1]));
+                break;
+            } catch (IOException e) {
+                if (e.getMessage().contentEquals("Connection refused")) {
+                    System.out.println("Master Server is not online.  Attempting to reconnect in 3s");
+                    try {
+                        Thread.sleep(3000);
+                    } catch (InterruptedException e1) {
+                        System.out.println("Exception sleeping");
+                        System.out.println(e1.getMessage());
                     }
                 }
             }
-            InitConnectionWithServer(mServerSocket);
+        }
+        InitConnectionWithMasterServer(mServerSocket);
+    }
 
-        } catch (IOException ioe) {
-            System.out.println(ioe.getMessage());
+    public MySocket GetSocketForID(String inSocketID) {
+        for (MySocket s : mChunkServers) {
+            if (s.GetID().equalsIgnoreCase(inSocketID)) {
+                return s;
+            }
+        }
+        for (MySocket s : mClients) {
+            if (s.GetID().equalsIgnoreCase(inSocketID)) {
+                return s;
+            }
+        }
+        if (inSocketID.equalsIgnoreCase("servermaster")) {
+            System.out.println("Removing server master");
+            return mServerSocket;
+        }
+        return null;
+    }
+
+    public void RemoveSocket(MySocket inSocket) {
+        if (mChunkServers.remove(inSocket)) {
+            return;
+        }
+        if (mClients.remove(inSocket)) {
+            return;
+        }
+        if (inSocket.GetID().equalsIgnoreCase(mServerSocket.GetID())) {
+            System.out.println("Closing server master");
+            mServerSocket = null;
         }
     }
 
@@ -216,7 +274,6 @@ public class ChunkServer {
             try {
                 ChunkServerClientThread clientServingThread = new ChunkServerClientThread(this);
                 clientServingThread.start();
-
                 while (true) {
                     MySocket newConnection = new MySocket(mListenSocket.accept());
                     Message m = new Message(newConnection.ReadBytes());
@@ -225,14 +282,16 @@ public class ChunkServer {
                         case "Client":
                             synchronized (mClients) {
                                 mClients.add(newConnection);
+                                mHeartbeatSocket.AddHeartbeat(newConnection.GetID(), m.ReadString());
                                 System.out.println("Adding new client");
                             }
                             break;
-                        case "Chunk":
+                        case "ChunkServer":
                             synchronized (mChunkServers) {
-                                int ChunkServerListenPort = m.ReadInt();
-                                newConnection.SetID(newConnection.GetID().split(":")[0] + ":" + ChunkServerListenPort);
+                                String id = m.ReadString();
+                                newConnection.SetID(id);
                                 mChunkServers.add(newConnection);
+                                mHeartbeatSocket.AddHeartbeat(newConnection.GetID(), m.ReadString());
                                 System.out.println("Adding new chunkserver");
                             }
                             break;
@@ -267,9 +326,10 @@ public class ChunkServer {
         }
 
         public void run() {
+            LoadFileStructure();
             while (true) {
                 try {
-                    synchronized (mClients) {
+                    synchronized (mMain.mClients) {
                         for (MySocket clientSocket : mMain.mClients) {
 
                             if (clientSocket.hasData()) {
@@ -280,7 +340,7 @@ public class ChunkServer {
                             }
                         }
                     }
-                    synchronized (mChunkServers) {
+                    synchronized (mMain.mChunkServers) {
                         for (MySocket chunkServerSocket : mMain.mChunkServers) {
                             if (chunkServerSocket.hasData()) {
                                 Message messageReceived = new Message(chunkServerSocket.ReadBytes());
@@ -290,16 +350,30 @@ public class ChunkServer {
                             }
                         }
                     }
-                    synchronized (mServerSocket) {
-                        if (mServerSocket.hasData()) {
-                            Message messageReceived = new Message(mServerSocket.ReadBytes());
+                    synchronized (mMain.mServerSocket) {
+                        if (mMain.mServerSocket.hasData()) {
+                            Message messageReceived = new Message(mMain.mServerSocket.ReadBytes());
                             Message messageSending = ParseServerInput(messageReceived);
-                            messageSending.SetSocket(mServerSocket);
+                            messageSending.SetSocket(mMain.mServerSocket);
                             mPendingMessages.push(messageSending);
                         }
                     }
                     while (!mPendingMessages.isEmpty()) {
                         mPendingMessages.pop().Send();
+                    }
+                    synchronized (mSocketsToClose) {
+                        while (!mSocketsToClose.isEmpty()) {
+                            String socketID = mSocketsToClose.pop();
+                            MySocket socketToClose = GetSocketForID(socketID);
+                            if (socketToClose == null) {
+                                System.out.println("Cannot find socket: " + socketID);
+                                continue;
+                            }
+                            System.out.println("Removing socket " + socketID);
+                            socketToClose.close();
+                            RemoveSocket(socketToClose);
+                            //need to remove socket
+                        }
                     }
                     ChunkServerClientThread.sleep(100);
 
@@ -321,64 +395,69 @@ public class ChunkServer {
                     System.out.println(m.ReadString());
                     break;
                 case "sm-makeprimary":
-                    BecomePrimary(m.ReadString(), outputToServer);
+                    System.out.println("Was told to become primary by server master");
+                    //BecomePrimary(m.ReadString(), outputToServer);
                     break;
                 case "sm-makenewfile":
-                    MakeNewChunk(m.ReadString(), outputToServer);
+                    MakeNewChunk(m.ReadString());
+                    SaveFileStructure();
                     break;
 
             }
             return outputToServer;
         }
+        /*
+         public void UnBecomePrimary(String chunkFilename) {
+         synchronized (mChunkServices) {
+         if (mChunkServices.get(chunkFilename) == null) {
+         //chunk does not exist
+         System.out.println("SUPER BAD ERROR: I am scheduled to unbecome"
+         + " the primary of a missing chunk! :( :( :(");
+         }
+         mChunkServices.get(chunkFilename).mIsPrimary = false;
+         //do other things that happen when i am no longer primary
+         }
+         }
+         */
+        /*
+         public void BecomePrimary(String chunkFilename, Message output) {
+         //check if chunkfile exists
+         if (mChunks.get(chunkFilename) == null) {
+         //chunk does not exist
+         //not sure what to do here :(
+         System.out.println("Tried to become primary of chunk that does not exist");
+         output.WriteDebugStatement("Tried to become primary of chunk that does not exist");
+         return;
+         }
+         //chunk does exist
+         System.out.println("Chunk I am to become primary of exists");
+         ChunkAppendRequest chunkService = mChunkServices.get(chunkFilename);
+         if (chunkService == null) {
+         mChunkServices.put(chunkFilename, new ChunkAppendRequest(true, chunkFilename));
+         } else {
+         chunkService.mIsPrimary = true;
+         }
+         //scheduled to stop being primary in 60s
+         Timer newTimer = new Timer();
+         newTimer.schedule(new PrimaryTimer(chunkFilename) {
+         @Override
+         public void run() {
+         UnBecomePrimary(chunkFilename);
+         }
+         }, 0, 60000);
+         mPrimaryTimers.add(newTimer);
+         output.WriteDebugStatement("Am the primary of chunk " + chunkFilename);
+         }
+         */
 
-        public void UnBecomePrimary(String chunkFilename) {
-            synchronized (mChunkServices) {
-                if (mChunkServices.get(chunkFilename) == null) {
-                    //chunk does not exist
-                    System.out.println("SUPER BAD ERROR: I am scheduled to unbecome"
-                            + " the primary of a missing chunk! :( :( :(");
-                }
-                mChunkServices.get(chunkFilename).mIsPrimary = false;
-                //do other things that happen when i am no longer primary
-            }
-        }
-
-        public void BecomePrimary(String chunkFilename, Message output) {
-            //check if chunkfile exists
-            if (mChunks.get(chunkFilename) == null) {
-                //chunk does not exist
-                //not sure what to do here :(
-                System.out.println("Tried to become primary of chunk that does not exist");
-                output.WriteDebugStatement("Tried to become primary of chunk that does not exist");
-                return;
-            }
-            //chunk does exist
-            System.out.println("Chunk I am to become primary of exists");
-            ChunkAppendRequest chunkService = mChunkServices.get(chunkFilename);
-            if (chunkService == null) {
-                mChunkServices.put(chunkFilename, new ChunkAppendRequest(true, chunkFilename));
-            } else {
-                chunkService.mIsPrimary = true;
-            }
-            //scheduled to stop being primary in 60s
-            Timer newTimer = new Timer();
-            newTimer.schedule(new PrimaryTimer(chunkFilename) {
-                @Override
-                public void run() {
-                    UnBecomePrimary(chunkFilename);
-                }
-            }, 0, 60000);
-            mPrimaryTimers.add(newTimer);
-            output.WriteDebugStatement("Am the primary of chunk " + chunkFilename);
-        }
-
-        public void MakeNewChunk(String chunkFilename, Message output) {
+        public void MakeNewChunk(String chunkFilename) {
             try {
                 if (mChunks.get(chunkFilename) == null) {
-                    chunkFilename = chunkFilename.substring(1, chunkFilename.length());
+                    if (chunkFilename.startsWith("/")) {
+                        chunkFilename = chunkFilename.substring(1, chunkFilename.length());
+                    }
                     chunkFilename = chunkFilename.replaceAll("/", ".");
                     System.out.println("Making new chunk: " + chunkFilename);
-                    output.WriteDebugStatement("Making new chunk: " + chunkFilename);
                     mChunks.put(chunkFilename, new Chunk(chunkFilename));
                 } else {
                     System.out.println("Chunk already exists in mChunks wtf");
@@ -386,6 +465,57 @@ public class ChunkServer {
             } catch (IOException ioe) {
                 System.out.println("Unable to make new chunk from server");
                 System.out.println(ioe.getMessage());
+            }
+        }
+
+        public void LoadFileStructure() {
+            File file = new File("SYSTEM_LOG.txt");
+            // create file if it does not exist
+            if (!file.exists()) {
+                try {
+                    file.createNewFile();
+                    return;
+                } catch (IOException ie) {
+                    System.out.println("Unable to create TFS structure file");
+                }
+            }
+
+            // create an input stream to read the data from the file
+            try {
+                BufferedReader br = new BufferedReader(new FileReader(file));
+                String line;
+                while ((line = br.readLine()) != null) {
+                    MakeNewChunk(line);
+                }
+                br.close();
+                
+                //tell server what chunks I have
+                System.out.println("Telling server what chunks i have");
+                Message chunksToServer = new Message();
+                chunksToServer.WriteString("chunksihave");
+                chunksToServer.WriteString(mID);
+                chunksToServer.WriteInt(mChunks.values().size());
+                for(Chunk c : mChunks.values()) {
+                    String modifiedChunkFilename = c.mChunkFileName.replaceAll("\\.", "/");
+                    chunksToServer.WriteString(modifiedChunkFilename);
+                }
+                chunksToServer.SetSocket(mServerSocket);
+                mPendingMessages.push(chunksToServer);
+            } catch (IOException ie) {
+                System.out.println("Unable to read TFS structure file");
+            }
+        }
+
+        public void SaveFileStructure() {
+            System.out.println("Saving file structure");
+            try {
+                PrintWriter pw = new PrintWriter(new FileWriter("SYSTEM_LOG.txt", false));
+                for (Chunk c : mChunks.values()) {
+                    pw.write(c.mChunkFileName + "\r\n");
+                }
+                pw.close();
+            } catch (IOException ie) {
+                System.out.println("Unable to write to TFS structure file");
             }
         }
 
@@ -398,9 +528,10 @@ public class ChunkServer {
                 case "seek":
                     System.out.println("Reading file");
                     break;
-                case "appendfile":
-                case "append":
-                    System.out.println("Writing file");
+                case "cs-appendreplica":
+                    //filename, size, data
+                    EvaluateCSAppendFile(m, outputToChunk);
+                    SaveFileStructure();
                     break;
                 case "cs-appendfileresponse":
                     //filename, serverinfo, success
@@ -417,18 +548,34 @@ public class ChunkServer {
             return outputToChunk;
         }
 
+        public void EvaluateCSAppendFile(Message m, Message output) {
+            System.out.println("Got append request from another chunk server");
+            String filename = m.ReadString();
+            int dataSize = m.ReadInt();
+            byte[] data = m.ReadData(dataSize);
+            System.out.println("For file: " + filename);
+            output.WriteString("cs-appendfileresponse");
+            output.WriteString(filename);
+            output.WriteString(mID);
+            output.WriteInt(AppendToFile(filename, data) ? 1 : 0);
+        }
+
         public void EvaluateCSAppendFileResponse(Message m) {
+            System.out.println("Received append file response");
             String filename = m.ReadString();
             String serverInfo = m.ReadString();
-            String success = m.ReadString();
-            ChunkAppendRequest chunkService = mChunkServices.get(filename);
-            for (String server : chunkService.mServers) {
-                if (server.compareTo(serverInfo) == 0) {
-                    chunkService.mTotalResponses++;
-                    if (success.compareTo("successful") == 0) {
-                        chunkService.mSuccessfulServers++;
-                    }
-                    break;
+            int success = m.ReadInt();
+            ChunkPendingAppend chunkService = mChunkServices.get(filename);
+            chunkService.UpdateServerStatus(serverInfo, (success == 1), filename);
+            if (chunkService.AllServersReplied()) {
+                System.out.println("Chunk server finished append");
+                if (chunkService.WasSuccessful() == false) {
+                    System.out.println("Not all servers were successful");
+                    //chunkService.resendMessage();
+                } else {
+                    System.out.println("All servers were successful");
+                    //send success to client
+                    mChunkServices.remove(filename);
                 }
             }
             //need to check if the server is not in the chunkservices (which should never ever happen)
@@ -449,7 +596,8 @@ public class ChunkServer {
                 case "appendfile":
                 case "append":
                     System.out.println("Writing file");
-                    AppendToFile(m, outputToClient);
+                    ClientAppendToFile(m);
+                    SaveFileStructure();
                     break;
                 case "readfile":
                     ReadFile(m, outputToClient);
@@ -461,9 +609,9 @@ public class ChunkServer {
             System.out.println("Finished client input");
             return outputToClient;
         }
-        
+
         public void ReadFile(Message input, Message output) {
-             //Message format: filename, data, replicaip:port, ... 
+            //Message format: filename, data, replicaip:port, ... 
             String fileName = input.ReadString();
             int numReplicas = input.ReadInt();
             String[] replicaInfo = new String[numReplicas];
@@ -503,47 +651,11 @@ public class ChunkServer {
             }
         }
 
-        public void AppendToFile(Message input, Message output) {
-            //Message format: filename, data, replicaip:port, ... 
-            String filename = input.ReadString();
-            int numReplicas = input.ReadInt();
-            String[] replicaInfo = new String[numReplicas];
-            for(int i = 0; i < replicaInfo.length; ++i ) {
-                replicaInfo[i] = input.ReadString();
-            }
-            int dataSize = input.ReadInt();
-            byte[] inData = input.ReadData(dataSize);
-
-            filename = filename.replace("/", ".");
-
-            //try to find a chunkservicerequest with this filename.  server should have
-            //already sent a request to this server since this is the primary
-            ChunkAppendRequest mChunkService = mChunkServices.get(filename);
-            if (mChunkService == null) {
-                //I should be the primary, but I don't have the service request yet
-                //make a new one and assume that the server will tell me i'm primary later
-                System.out.println("Making a a new chunkservicerequest and becoming primary"
-                        + " even though server hasn't told me yet.");
-                mChunkService = new ChunkAppendRequest(true, filename);
-                mChunkServices.put(filename, mChunkService);
-            }
-            for (String s : replicaInfo) {
-                mChunkService.mServers.add(s);
-            }
-            for (String s : mChunkService.mServers) {
-                System.out.println(s);
-                try {
-                MySocket newChunkServerSocket = new MySocket(s);
-                InitConnectionWithServer(newChunkServerSocket);
-                newChunkServerSocket.close();
-                } catch (IOException ioe) {
-                    System.out.println(ioe.getMessage());
-                    
-                }
-            }
+        public boolean AppendToFile(String filename, byte[] inData) {
             Chunk chunkToAppend = mChunks.get(filename);
-            if(chunkToAppend == null) {
-                MakeNewChunk(filename, output);
+            if (chunkToAppend == null) {
+                MakeNewChunk(filename);
+                chunkToAppend = mChunks.get(filename);
             }
             if (chunkToAppend.mCurrentSize + 4 + inData.length > MAX_CHUNK_SIZE) {
                 System.out.println("Not enough space to append data");
@@ -556,13 +668,64 @@ public class ChunkServer {
                 //there is enough space
                 if (chunkToAppend.AppendTo(inData)) {
                     System.out.println("Appending data was successful");
-                    output.WriteDebugStatement("Appending data was successful");
+                    return true;
                     //it was successful
                 } else {
                     System.out.println("Appending data was not successful");
                     //it was not successful and need to tell primary unless
                     //i am the primary
+                    return false;
                 }
+            }
+            return false;
+        }
+
+        public void ClientAppendToFile(Message input) {
+            //Message format: clientinfo, filename, data, replicaip:port, ... 
+            String filename = input.ReadString();
+            int numReplicas = input.ReadInt();
+            String[] replicaInfo = new String[numReplicas];
+            for (int i = 0; i < replicaInfo.length; ++i) {
+                replicaInfo[i] = input.ReadString();
+            }
+            int dataSize = input.ReadInt();
+            byte[] inData = input.ReadData(dataSize);
+
+            filename = filename.replace("/", ".");
+
+            //try to find a chunkservicerequest with this filename.  server should have
+            //already sent a request to this server since this is the primary
+            ChunkPendingAppend mChunkService = mChunkServices.get(filename);
+            if (mChunkService == null) {
+                //I should be the primary, but I don't have the service request yet
+                //make a new one and assume that the server will tell me i'm primary later
+                System.out.println("Making a a new chunkservicerequest.");
+                mChunkService = new ChunkPendingAppend(filename);
+                mChunkServices.put(filename, mChunkService);
+            } else {
+                System.out.println("Using old chunkpendingappend.  shouldn't happen.  might happen with multiple clients");
+            }
+            for (String s : replicaInfo) {
+                System.out.println(s);
+                try {
+                    MySocket newChunkServerSocket = new MySocket(s);
+                    InitConnectionWithChunkServer(newChunkServerSocket);
+                    mChunkServers.add(newChunkServerSocket);
+                    mChunkService.AddServer(newChunkServerSocket);
+                } catch (IOException ioe) {
+                    System.out.println(ioe.getMessage());
+
+                }
+            }
+            AppendToFile(filename, inData);
+            mChunkService.GetMessage().WriteString("cs-appendreplica");
+            mChunkService.GetMessage().WriteString(filename);
+            mChunkService.GetMessage().WriteInt(inData.length);
+            mChunkService.GetMessage().AppendData(inData);
+            try {
+                mChunkService.SendRequest();
+            } catch (IOException ioe) {
+                System.out.println("Had problem writing data to socket");
             }
         }
 

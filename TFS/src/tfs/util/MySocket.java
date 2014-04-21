@@ -7,14 +7,11 @@ package tfs.util;
 
 import java.net.*;
 import java.io.*;
-import tfs.util.Message;
-import java.util.ArrayList;
-
 /**
  *
  * @author laurencewong
  */
-public class MySocket {
+public class MySocket implements Callbackable{
 
     private Socket mSocket;
     private DataOutputStream mDataOutput;
@@ -47,7 +44,6 @@ public class MySocket {
         mDataOutput = new DataOutputStream(mSocket.getOutputStream());
         mDataInput = new DataInputStream(mSocket.getInputStream());
         mDataReader = new BufferedReader(new InputStreamReader(mDataInput));
-        
         String socketInetAddr = inSocket.getInetAddress().toString();
         mSocketID = socketInetAddr.substring(1, socketInetAddr.length()) + ":" + inSocket.getPort();
                 
@@ -95,9 +91,13 @@ public class MySocket {
     }
 
     public byte[] ReadBytes() throws IOException {
+        System.out.println("reading");
         int byteArrayLength = mDataInput.readInt();
+        System.out.println("Reading int");
         byte[] readBytes = new byte[byteArrayLength];
-        mDataInput.readFully(readBytes);
+        System.out.println("making new byte array");
+        mDataInput.read(readBytes);
+        System.out.println("Reading bytes");
         return readBytes;
     }
 
@@ -107,5 +107,14 @@ public class MySocket {
 
     public void close() throws IOException {
         mSocket.close();
+    }
+    
+    public Socket GetSocket() {
+        return mSocket;
+    }
+
+    @Override
+    public void Callback(String inParameter) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 }

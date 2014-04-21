@@ -41,6 +41,55 @@ public class FileNode implements Serializable {
         public ArrayList<String> GetReplicaLocations() {
             return mChunkReplicaLocations;
         }
+
+        public void RemoveChunkLocation(String inLocation) {
+            if (inLocation.equalsIgnoreCase(mChunkLocation)) {
+                System.out.println("Removing primary location");
+                mChunkLocation = null;
+                if (!mChunkReplicaLocations.isEmpty()) {
+                    System.out.println("Replica is becoming primary");
+                    mChunkLocation = mChunkReplicaLocations.get(0);
+                    RemoveReplicaLocation(mChunkLocation);
+                }
+            } else {
+                RemoveReplicaLocation(inLocation);
+            }
+        }
+
+        public void RemoveReplicaLocation(String inLocation) {
+            String foundLocation = null;
+            for (String s : mChunkReplicaLocations) {
+                if (s.equalsIgnoreCase(inLocation)) {
+                    System.out.println("Removing replica location");
+                    foundLocation = s;
+                    break;
+                }
+            }
+            if (foundLocation != null) {
+                mChunkReplicaLocations.remove(foundLocation);
+            }
+        }
+        
+        public void SetChunkLocation(String inLocation) {
+            if(mChunkLocation != null) {
+                //it has a primary location
+                AddReplicaLocation(inLocation);
+                return;
+            }
+            System.out.println("Setting chunk's main location");
+            mChunkLocation = inLocation;
+        }
+        
+        public void AddReplicaLocation(String inLocation) {
+            for (String s : mChunkReplicaLocations) {
+                if (s.equalsIgnoreCase(inLocation)) {
+                    System.out.println("Replica already exists");
+                    return;
+                }
+            }
+            System.out.println("Adding replica to chunk");
+            mChunkReplicaLocations.add(inLocation);
+        }
     }
 
     /**
@@ -53,8 +102,7 @@ public class FileNode implements Serializable {
         FileMetadata() {
             mChunks = new ArrayList<>();
         }
-        
-            
+
         public int GetNumChunks() {
             return mChunks.size();
         }
@@ -68,14 +116,14 @@ public class FileNode implements Serializable {
         }
         return mFileMetadata.mChunks.get(inIndex).mChunkLocation;
     }
-    
+
     public boolean DoesChunkExistAtLocation(int inIndex, String inLocation) {
         ChunkMetadata chunkAtIndex = mFileMetadata.mChunks.get(inIndex);
-        if(chunkAtIndex.GetPrimaryLocation().equalsIgnoreCase(inLocation)) {
+        if (chunkAtIndex.GetPrimaryLocation().equalsIgnoreCase(inLocation)) {
             return true;
         }
-        for(String s : chunkAtIndex.GetReplicaLocations()) {
-            if(s.equalsIgnoreCase(inLocation)) {
+        for (String s : chunkAtIndex.GetReplicaLocations()) {
+            if (s.equalsIgnoreCase(inLocation)) {
                 return true;
             }
         }
@@ -91,12 +139,11 @@ public class FileNode implements Serializable {
         return mFileMetadata.mChunks.get(inIndex);
     }
 
-
     public void AddChunkAtLocation(String inLocation) {
         String chunkName = inLocation;
         mFileMetadata.mChunks.add(new ChunkMetadata(chunkName));
     }
-    
+
     public void AddReplicaAtLocation(int inIndex, String inLocation) {
         mFileMetadata.mChunks.get(inIndex).mChunkReplicaLocations.add(inLocation);
     }

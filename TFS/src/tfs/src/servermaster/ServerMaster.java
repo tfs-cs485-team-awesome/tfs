@@ -19,27 +19,36 @@ import java.util.Random;
 import tfs.util.FileNode;
 import tfs.util.Message;
 import tfs.util.MySocket;
+import tfs.util.HeartbeatSocket;
+import tfs.util.Callbackable;
 
 /**
  *
  * @author laurencewong
  */
-public class ServerMaster {
+public class ServerMaster implements Callbackable {
 
     FileNode mFileRoot;
     ServerSocket mListenSocket;
-    ArrayList<MySocket> mClients;
-    ArrayList<MySocket> mChunkServers;
+    HeartbeatSocket mHeartbeatSocket;
+    final ArrayList<MySocket> mClients = new ArrayList<>();
+    final ArrayList<MySocket> mChunkServers = new ArrayList<>();
     ArrayDeque<Message> mPendingMessages; //messages to send out
-    
+    ArrayDeque<String> mSocketsToClose;
+
     final int NUM_REPLICAS = 3;
 
-    public void Init() {
+    public final String GetIP() throws IOException {
+        String ip = InetAddress.getLocalHost().toString();
+        ip = ip.substring(ip.indexOf("/") + 1);
+        return ip;
+    }
+
+    public final void Init() {
         mFileRoot = new FileNode(false);
         mFileRoot.mName = "/";
-        mClients = new ArrayList<MySocket>();
-        mChunkServers = new ArrayList<MySocket>();
         mPendingMessages = new ArrayDeque<>();
+        mSocketsToClose = new ArrayDeque<>();
     }
 
     public ServerMaster(int inSocketNum) {
@@ -47,7 +56,9 @@ public class ServerMaster {
         try {
             System.out.println("Starting server on port " + inSocketNum);
             mListenSocket = new ServerSocket(inSocketNum);
-        } catch (Exception e) {
+            mHeartbeatSocket = new HeartbeatSocket(inSocketNum, this);
+            mHeartbeatSocket.start();
+        } catch (IOException e) {
             System.out.println(e.getLocalizedMessage());
         }
     }
@@ -56,7 +67,9 @@ public class ServerMaster {
         Init();
         try {
             mListenSocket = new ServerSocket(6789);
-        } catch (Exception e) {
+            mHeartbeatSocket = new HeartbeatSocket(6789, this);
+            mHeartbeatSocket.start();
+        } catch (IOException e) {
             System.out.println(e.getLocalizedMessage());
         }
     }
@@ -68,25 +81,40 @@ public class ServerMaster {
             newClientThread.start();
             while (true) {
                 MySocket newConnection = new MySocket(mListenSocket.accept());
+                System.out.println("Accepting new connection");
                 //BufferedReader newConnectionReader = new BufferedReader(new InputStreamReader(newConnection.getInputStream()));
                 //String connectionType = newConnectionReader.readLine();
                 Message m = new Message(newConnection.ReadBytes());
                 String connectionType = m.ReadString();
                 switch (connectionType) {
-                    case "Client":
+                    case "Client": {
                         synchronized (mClients) {
                             mClients.add(newConnection);
-                            System.out.println("Adding new client");
                         }
+
+                        Message sendID = new Message();
+                        sendID.WriteString("setid");
+                        newConnection.SetID(newConnection.GetSocket().getInetAddress() + ":" + newConnection.GetSocket().getPort());
+                        sendID.WriteString(newConnection.GetID());
+                        newConnection.WriteMessage(sendID);
+                        System.out.println("Adding new client");
                         break;
-                    case "ChunkServer":
+                    }
+                    case "ChunkServer": {
                         synchronized (mChunkServers) {
-                            mChunkServers.add(newConnection);
+
+                            System.out.println("Accepting chunk server" + newConnection.GetSocket().getLocalAddress() + ((InetSocketAddress) newConnection.GetSocket().getLocalSocketAddress()).getPort());
+                            Message sendID = new Message();
+                            sendID.WriteString("setid");
                             int ChunkServerListenPort = m.ReadInt();
                             newConnection.SetID(newConnection.GetID().split(":")[0] + ":" + ChunkServerListenPort);
+                            sendID.WriteString(newConnection.GetID());
                             System.out.println("Adding new chunkserver with ID : " + newConnection.GetID());
+                            newConnection.WriteMessage(sendID);
+                            mChunkServers.add(newConnection);
+                            break;
                         }
-                        break;
+                    }
                     default:
                         System.out.println("Server was told new connection of type: " + connectionType);
                         break;
@@ -97,7 +125,17 @@ public class ServerMaster {
             System.out.println(e.getMessage());
             System.out.println(e.getLocalizedMessage());
         }
-        System.out.println("Exiting server");
+
+        System.out.println(
+                "Exiting server");
+    }
+
+    @Override
+    public void Callback(String inParameter) {
+        synchronized (mSocketsToClose) {
+            mSocketsToClose.push(inParameter);
+
+        }
     }
 
     public class ServerMasterClientThread extends Thread {
@@ -115,7 +153,7 @@ public class ServerMaster {
             while (true) {
                 try {
                     synchronized (mClients) {
-                        for (MySocket clientSocket : mMaster.mClients) {
+                        for (MySocket clientSocket : mClients) {
 
                             if (clientSocket.hasData()) {
                                 Message messageReceived = new Message(clientSocket.ReadBytes());
@@ -126,13 +164,34 @@ public class ServerMaster {
                         }
                     }
                     synchronized (mChunkServers) {
-                        for (MySocket chunkSocket : mMaster.mChunkServers) {
-
+                        for (MySocket chunkSocket : mChunkServers) {
+                            if(chunkSocket.hasData()) {
+                             System.out.println("Reading bytes from " + chunkSocket.GetSocket().getLocalAddress() + ((InetSocketAddress) chunkSocket.GetSocket().getLocalSocketAddress()).getPort());
+                             Message messageReceived = new Message(chunkSocket.ReadBytes());
+                             Message messageSending = ParseChunkInput(messageReceived);
+                             messageSending.SetSocket(chunkSocket);
+                             mPendingMessages.push(messageSending);
+                            }
                         }
                     }
+
                     while (!mPendingMessages.isEmpty()) {
                         mPendingMessages.pop().Send();
                     }
+                    synchronized (mSocketsToClose) {
+                        while (!mSocketsToClose.isEmpty()) {
+                            String socketID = mSocketsToClose.pop();
+                            MySocket socketToClose = GetSocket(socketID);
+                            if (socketToClose == null) {
+                                System.out.println("Cannot find socket: " + socketID);
+                                continue;
+                            }
+                            System.out.println("Closing socket " + socketID);
+                            RemoveSocket(socketToClose);
+                            //need to remove socket
+                        }
+                    }
+
                     this.sleep(100);
                 } catch (Exception e) {
 
@@ -156,6 +215,17 @@ public class ServerMaster {
                 }
             }
             return null;
+        }
+
+        public void RemoveSocket(MySocket inSocket) {
+            if (mChunkServers.remove(inSocket)) {
+                RemoveLocationFromFiles(inSocket.GetID());
+                return;
+            }
+            if (mClients.remove(inSocket)) {
+                return;
+            }
+            System.out.println("Socket not found " + inSocket.GetID());
         }
 
         public void LoadFileStructure() {
@@ -299,6 +369,36 @@ public class ServerMaster {
             return;
         }
 
+        public Message ParseChunkInput(Message m) {
+            Message outputToClient = new Message();
+
+            String command = m.ReadString();
+            System.out.println("Server receivd: " + command);
+            switch (command.toLowerCase()) {
+                case "chunksihave":
+                    UpdateChunkLocations(m, outputToClient);
+                    break;
+            }
+            return outputToClient;
+        }
+
+        public void UpdateChunkLocations(Message m, Message output) {
+            String inChunkServerLocation = m.ReadString();
+            int numChunks = m.ReadInt();
+            for (int i = 0; i < numChunks; ++i) {
+                String readPath = m.ReadString();
+                FileNode fn = GetAtPath(readPath);
+                if (fn == null) {
+                    output.WriteDebugStatement("File " + readPath + " does not exist on the server");
+                } else if (fn.mIsDirectory) {
+                    output.WriteDebugStatement("File " + readPath + " is a directory on the server");
+                } else {
+                    fn.GetChunkDataAtIndex(0).SetChunkLocation(inChunkServerLocation);
+                }
+            }
+
+        }
+
         /**
          * Parses the client's input into a command and a parameter
          *
@@ -390,13 +490,13 @@ public class ServerMaster {
         }
 
         public void AssignChunkServerToFile(String fileName) {
-            //make a random chunk server the location of this new file
+        //make a random chunk server the location of this new file
 
             /*FileNode file = GetAtPath(fileName);
-            if (file == null) {
-                System.out.println("File does not exist; unable to assign chunk server to file");
-            }
-            */
+             if (file == null) {
+             System.out.println("File does not exist; unable to assign chunk server to file");
+             }
+             */
             FileNode node = GetAtPath(fileName);
             if (!mChunkServers.isEmpty()) {
                 Random newRandom = new Random();
@@ -407,9 +507,9 @@ public class ServerMaster {
                 newChunkMessage.WriteString(fileName);
                 newChunkMessage.SetSocket(chunkServerSocket);
                 mPendingMessages.push(newChunkMessage);
-                for(int i = 0; i < (mChunkServers.size() - 1 < NUM_REPLICAS ? mChunkServers.size() - 1 : NUM_REPLICAS) ; ++i ) {
+                for (int i = 0; i < (mChunkServers.size() - 1 < NUM_REPLICAS ? mChunkServers.size() - 1 : NUM_REPLICAS); ++i) {
                     MySocket newChunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
-                    while(node.DoesChunkExistAtLocation(0, newChunkServerSocket.GetID())) {
+                    while (node.DoesChunkExistAtLocation(0, newChunkServerSocket.GetID())) {
                         newChunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
                     }
                     System.out.println("Adding replica at server: " + newChunkServerSocket.GetID());
@@ -454,6 +554,20 @@ public class ServerMaster {
             m.WriteInt(totalPath.size());
             for (String s : totalPath) {
                 m.WriteString(s);
+            }
+        }
+
+        public void RemoveLocationFromFiles(String ReplicaInfo) {
+            RecurseRemoveLocationFromFiles(mFileRoot, ReplicaInfo);
+        }
+
+        public void RecurseRemoveLocationFromFiles(FileNode curNode, String ReplicaInfo) {
+            if (curNode.mIsDirectory) {
+                for (FileNode fn : curNode.mChildren) {
+                    RecurseRemoveLocationFromFiles(fn, ReplicaInfo);
+                }
+            } else {
+                curNode.GetChunkDataAtIndex(0).RemoveChunkLocation(ReplicaInfo);
             }
         }
 
