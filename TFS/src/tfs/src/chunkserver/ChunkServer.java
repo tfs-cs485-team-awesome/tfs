@@ -82,6 +82,7 @@ public class ChunkServer implements Callbackable {
                         skippedBytes += bytesToSkip;
                         in.mark(skippedBytes);//mark the position before the next int
                     }
+                    in.close();
                     System.out.println("Skipped: " + skippedBytes + "bytes");
                 } else {
                     throw new IOException("File does not exist");
@@ -105,7 +106,6 @@ public class ChunkServer implements Callbackable {
             try {
                 Path filePath = Paths.get(mChunkFileName);
                 BufferedInputStream br = new BufferedInputStream(Files.newInputStream(filePath, READ));
-
                 if (br.read(outData, offset, length) > 0) {
                 } else {
                     System.out.println("Failed to read given length from offset");
