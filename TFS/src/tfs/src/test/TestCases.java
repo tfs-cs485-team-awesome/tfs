@@ -39,7 +39,8 @@ public class TestCases {
                 switch(argv[0]){
                     case "test1":
                         int param = Integer.parseInt(argv[1]);
-                        tc.test1(param);
+                        int param2 = Integer.parseInt(argv[2]);
+                        tc.test1(param, param2);
                         break;
                     case "test2":
                         param = Integer.parseInt(argv[2]);
@@ -73,33 +74,44 @@ public class TestCases {
     /**
      * Create a hierarchical directory structure.
      */
-    public void test1(int dirs) {
-
+    public void test1(int numDirs, int numSubs) {
         try {
-            int i = 2;
-            Queue q = new LinkedList();
-            q.add("1");
-            testClient.CreateDir("1");
-
-            while (dirs - i >= 0) {
-                String curstr = q.remove().toString();
-                String temp = curstr + "/" + i;
-                q.add(temp);
-                testClient.CreateDir(temp);
-
-                i++;
-                if (dirs - i >= 0) {
-                    temp = curstr + "/" + i;
-                    q.add(temp);
-                    testClient.CreateDir(temp);
+            if(numSubs == 0){
+                for(int i = 1; i <= numDirs; i++) {
+                    testClient.CreateDir(Integer.toString(i));
                 }
-                i++;
+                return;
+            } else {
+                
             }
-        } catch (IOException e) {
+        } catch(IOException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
         }
-
+//        try {
+//            int i = 2;
+//            Queue q = new LinkedList();
+//            q.add("1");
+//            testClient.CreateDir("1");
+//
+//            while (dirs - i >= 0) {
+//                String curstr = q.remove().toString();
+//                String temp = curstr + "/" + i;
+//                q.add(temp);
+//                testClient.CreateDir(temp);
+//
+//                i++;
+//                if (dirs - i >= 0) {
+//                    temp = curstr + "/" + i;
+//                    q.add(temp);
+//                    testClient.CreateDir(temp);
+//                }
+//                i++;
+//            }
+//        } catch (IOException e) {
+//            System.out.println(e.getMessage());
+//            e.printStackTrace();
+//        }
     }
 
     public void test2(String filePath, int numFiles) {
