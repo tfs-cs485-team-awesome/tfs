@@ -164,5 +164,19 @@ public class TestCases {
             e.printStackTrace();
         }
     }
+    
+    public void test8(int numInstances, String localpath, String pathname) {
+        try {
+            Client n[] = new Client[numInstances];
+            for (int i = 1; i <= numInstances; i++) {
+                    n[i] = new Client("localhost:6789");
+                    n[i].AppendFile(localpath, pathname);
+            }
+        } catch (IOException e) {
+            System.out.println("Test 8 failed due to exception " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
 
 }
