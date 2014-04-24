@@ -25,9 +25,9 @@ public class TestCases {
     static Client testClient;
 
     public static void main(String[] args) {
-        testClient = new Client(args[0]);
+        //testClient = new Client(args[0]);
         try {
-            testClient.ConnectToServer();
+            //testClient.ConnectToServer();
             TestCases tc = new TestCases();
             
             System.out.println("Type a test with valid parameters and press enter: ");
@@ -35,31 +35,43 @@ public class TestCases {
             String input = "";
             while(true){
                 input = br.readLine();
-                String[] argv = input.split(" ");
-                switch(argv[0]){
+                String[] params = input.split(" ");
+                switch(params[0].toLowerCase()){
                     case "test1":
-                        int param = Integer.parseInt(argv[1]);
-                        int param2 = Integer.parseInt(argv[2]);
+                    case "unit1":
+                        int param = Integer.parseInt(params[1]);
+                        int param2 = Integer.parseInt(params[2]);
                         tc.test1(param, param2);
                         break;
                     case "test2":
-                        param = Integer.parseInt(argv[2]);
-                        tc.test2(argv[1], param);
+                    case "unit2":
+                        param = Integer.parseInt(params[2]);
+                        tc.test2(params[1], param);
                         break;
                     case "test3":
-                        tc.test3(argv[1]);
+                    case "unit3":
+                        tc.test3(params[1]);
                         break;
                     case "test4":
-                        tc.test4(argv[1], argv[2]);
+                    case "unit4":
+                        tc.test4(params[1], params[2]);
                         break;
                     case "test5":
-                        tc.test5(argv[1], argv[2]);
+                    case "unit5":
+                        tc.test5(params[1], params[2]);
                         break;
                     case "test6":
-                        tc.test6(argv[1], argv[2]);
+                    case "unit6":
+                        tc.test6(params[1], params[2]);
                         break;
                     case "test7":
-                        tc.test7(argv[1]);
+                    case "unit7":
+                        tc.test7(params[1]);
+                        break;
+                    case "test8":
+                    case "unit8":
+                        param = Integer.parseInt(params[1]);
+                        tc.test8(args[0], params[2], params[3], param);
                         break;
                     default:
                         System.out.println("Invalid test case, please re-enter");
@@ -67,7 +79,7 @@ public class TestCases {
                 }
             }
         } catch (Exception e) {
-            System.out.println("Unrecognized command, please re-enter");
+            System.out.println("Unrecognized command.");
         }
     }
 
@@ -79,39 +91,35 @@ public class TestCases {
             if(numSubs == 0){
                 for(int i = 1; i <= numDirs; i++) {
                     testClient.CreateDir(Integer.toString(i));
+                    //System.out.println(i);
                 }
                 return;
             } else {
-                
+                List<String> dirs = new ArrayList();
+                dirs.add("1");
+
+                int index = 0;
+                int num = 2;
+                while(dirs.size() < numDirs) {
+                    for (int i = 0; i < numSubs; i++){
+                        if (dirs.size() == numDirs){
+                            break;
+                        }
+
+                        dirs.add(dirs.get(index) + "/" + num);
+                        num ++;
+                    }
+                    index ++;
+                }
+                for(int i = 0; i < dirs.size(); i++){
+                    testClient.CreateDir(dirs.get(i));
+                    //System.out.println(dirs.get(i));
+                }
             }
         } catch(IOException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
         }
-//        try {
-//            int i = 2;
-//            Queue q = new LinkedList();
-//            q.add("1");
-//            testClient.CreateDir("1");
-//
-//            while (dirs - i >= 0) {
-//                String curstr = q.remove().toString();
-//                String temp = curstr + "/" + i;
-//                q.add(temp);
-//                testClient.CreateDir(temp);
-//
-//                i++;
-//                if (dirs - i >= 0) {
-//                    temp = curstr + "/" + i;
-//                    q.add(temp);
-//                    testClient.CreateDir(temp);
-//                }
-//                i++;
-//            }
-//        } catch (IOException e) {
-//            System.out.println(e.getMessage());
-//            e.printStackTrace();
-//        }
     }
 
     public void test2(String filePath, int numFiles) {
@@ -169,7 +177,7 @@ public class TestCases {
     }
     
     public void test7(String pathname) {
-                try {
+        try {
             testClient.CountFiles(pathname);
         } catch (IOException e) {
             System.out.println("Test 6 failed due to exception " + e.getMessage());
@@ -177,11 +185,11 @@ public class TestCases {
         }
     }
     
-    public void test8(int numInstances, String localpath, String pathname) {
+    public void test8(String port, String localpath, String pathname, int numInstances) {
         try {
             Client n[] = new Client[numInstances];
             for (int i = 1; i <= numInstances; i++) {
-                    n[i] = new Client("localhost:6789");
+                    n[i] = new Client(port);
                     n[i].AppendFile(localpath, pathname);
             }
         } catch (IOException e) {
