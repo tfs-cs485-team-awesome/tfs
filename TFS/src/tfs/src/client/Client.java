@@ -80,7 +80,7 @@ public class Client implements ClientInterface, Callbackable{
 
     public void InitConnectionWithMasterServer(MySocket inSocket) {
         try {
-            System.out.println("Telling server that I am a client");
+            System.out.println("Telling master server that I am a client");
             Message toServer = new Message();
             toServer.WriteString("Client");
             inSocket.WriteMessage(toServer);
@@ -104,9 +104,10 @@ public class Client implements ClientInterface, Callbackable{
 
     public void InitConnectionWithChunkServer(MySocket inSocket) {
         try {
-            System.out.println("Telling server that I am a client");
+            System.out.println("Telling chunk server that I am a client");
             Message toServer = new Message();
             toServer.WriteString("Client");
+            toServer.WriteString(mID);
             toServer.WriteString(mHeartbeatSocket.GetIPAndPort());
             inSocket.WriteMessage(toServer);
         } catch (IOException ioExcept) {
@@ -206,7 +207,11 @@ public class Client implements ClientInterface, Callbackable{
                     if (false /*eventually add heartbeat message check in here*/) {
                         break;
                     }
+                    try {
                     SendMessage();
+                    } catch (IOException e) {
+                        System.out.println(e.getMessage());
+                    }
                     ReceiveMessage();
                     synchronized(mSocketsToClose) {
                         while (!mSocketsToClose.isEmpty()) {
@@ -445,13 +450,14 @@ public class Client implements ClientInterface, Callbackable{
 
     public boolean ParseWriteToFile(String[] inString, Message toServer) {
         //cmd localfile remotefile
-        if (inString.length != 3) {
+        if (inString.length != 4) {
             System.out.println("Invalid number of arguments");
             return false;
         }
         toServer.WriteString(inString[0]);
 
         toServer.WriteString(inString[2]);
+        //toServer.WriteInt(Integer.valueOf(inString[3])); // number of replicas
 
         //it's a file
         //handle this sometime
@@ -619,6 +625,7 @@ public class Client implements ClientInterface, Callbackable{
         //filename, primary info, num replicas, replicainfo
         String filename = m.ReadString();
         String primaryChunkInfo = m.ReadString();
+        System.out.println("Append primary info " + primaryChunkInfo);
         int numReplicas = m.ReadInt();
         String[] replicaInfo = new String[numReplicas];
         for (int i = 0; i < numReplicas; ++i) {
@@ -658,7 +665,7 @@ public class Client implements ClientInterface, Callbackable{
         MySocket newChunkServerSocket = GetSocketForID(primaryChunkInfo);
         if (newChunkServerSocket == null) {
             newChunkServerSocket = new MySocket(primaryChunkInfo);
-            InitConnectionWithMasterServer(newChunkServerSocket);
+            InitConnectionWithChunkServer(newChunkServerSocket);
         }
 
         mChunkServerSockets.add(newChunkServerSocket);
@@ -702,6 +709,7 @@ public class Client implements ClientInterface, Callbackable{
         System.out.println("Got smreadfileresponse");
         String filename = m.ReadString();
         String primaryChunkInfo = m.ReadString();
+        System.out.println("Read primary info: " + primaryChunkInfo);
         int numReplicas = m.ReadInt();
         String[] replicaInfo = new String[numReplicas];
         for (int i = 0; i < numReplicas; ++i) {
@@ -710,11 +718,12 @@ public class Client implements ClientInterface, Callbackable{
 
         MySocket newChunkServerSocket = GetSocketForID(primaryChunkInfo);
         if (newChunkServerSocket == null) {
+            System.out.println("Making new chunk server socket");
             newChunkServerSocket = new MySocket(primaryChunkInfo);
-            InitConnectionWithMasterServer(newChunkServerSocket);
+            InitConnectionWithChunkServer(newChunkServerSocket);
             mChunkServerSockets.add(newChunkServerSocket);
         }
-
+        System.out.println("Writing message to chunk server");  
         Message toPrimaryChunkServer = new Message();
         toPrimaryChunkServer.WriteString("readfile");
         toPrimaryChunkServer.WriteString(GetRequestWithFilename(filename).GetName());
@@ -747,6 +756,7 @@ public class Client implements ClientInterface, Callbackable{
 
     public void ParseChunkInput(Message m) throws IOException, UnknownHostException {
         String input = m.ReadString();
+        System.out.println("Read " + input + " from chunk server");
         switch (input) {
             case "cs-readfileresponse":
                 CSReadFileResponse(m);
