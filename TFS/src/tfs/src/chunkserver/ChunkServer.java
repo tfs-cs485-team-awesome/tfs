@@ -282,8 +282,9 @@ public class ChunkServer implements Callbackable {
                         case "Client":
                             synchronized (mClients) {
                                 mClients.add(newConnection);
+                                newConnection.SetID(m.ReadString());
                                 mHeartbeatSocket.AddHeartbeat(newConnection.GetID(), m.ReadString());
-                                System.out.println("Adding new client");
+                                System.out.println("Adding new client with ID: " + newConnection.GetID());
                             }
                             break;
                         case "ChunkServer":

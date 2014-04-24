@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Timer;
 import java.util.TimerTask;
+
 /**
  *
  * @author laurencewong
@@ -25,7 +26,7 @@ public class HeartbeatSocket extends Thread {
         int mPort;
         int mTimeout; // > MAX_TIMEOUT, then declared dead.
         boolean mAlive;
-        String mID;
+        String mID; //need multiple statuses for same client because their id is not the same
     }
 
     Timer mTimer;
@@ -51,7 +52,7 @@ public class HeartbeatSocket extends Thread {
     public HeartbeatSocket(String inID, String inTheirID, Callbackable inCallback) throws IOException {
         mSocket = new DatagramSocket(null);
         mSocket.bind(null);
-        mIPAndPort = GetIP() + ":" + ((InetSocketAddress)mSocket.getLocalSocketAddress()).getPort();
+        mIPAndPort = GetIP() + ":" + ((InetSocketAddress) mSocket.getLocalSocketAddress()).getPort();
         System.out.println("Starting heartbeat socket on: " + mIPAndPort);
         System.out.println("With ID: " + inID);
         //initialize the listener socket
@@ -77,12 +78,12 @@ public class HeartbeatSocket extends Thread {
 
     public final void AddHeartbeat(String inID, String inIPAndPort) {
         try {
-
+            //
             String[] idSplit = inIPAndPort.split(":");
             HeartbeatStatus newStatus = new HeartbeatStatus();
             String nameAndIp = InetAddress.getByName(idSplit[0].trim()).toString();
             nameAndIp = nameAndIp.substring(nameAndIp.indexOf("/") + 1);
-            if(nameAndIp.equalsIgnoreCase("localhost")) {
+            if (nameAndIp.equalsIgnoreCase("localhost")) {
                 nameAndIp = "127.0.0.1";
             }
             //System.out.println("Name and IP And Port: " + nameAndIp + ":" + idSplit[1].trim());
@@ -99,7 +100,7 @@ public class HeartbeatSocket extends Thread {
             System.out.println(uhe.getMessage());
         }
     }
-    
+
     public String GetIPAndPort() {
         return mIPAndPort;
     }
@@ -188,7 +189,9 @@ public class HeartbeatSocket extends Thread {
                 String receivedID = received.ReadString();
                 String receivedIPAndPort = received.ReadString();
                 //System.out.println("ID:" + receivedID + " ipAndPort: " + receivedIPAndPort);
+
                 if (IsNewHeartbeat(receivedID)) {
+                    //System.out.println("ID:" + receivedID + " ipAndPort: " + receivedIPAndPort);
                     AddHeartbeat(receivedID, receivedIPAndPort);
                 } else {
                     UpdateHeartbeat(receivedID);
