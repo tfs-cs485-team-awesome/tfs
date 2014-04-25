@@ -330,8 +330,8 @@ public class ChunkServer implements Callbackable {
             LoadFileStructure();
             while (true) {
                 try {
-                    synchronized (mMain.mClients) {
-                        for (MySocket clientSocket : mMain.mClients) {
+                    synchronized (mClients) {
+                        for (MySocket clientSocket : mClients) {
 
                             if (clientSocket.hasData()) {
                                 Message messageReceived = new Message(clientSocket.ReadBytes());
@@ -341,8 +341,8 @@ public class ChunkServer implements Callbackable {
                             }
                         }
                     }
-                    synchronized (mMain.mChunkServers) {
-                        for (MySocket chunkServerSocket : mMain.mChunkServers) {
+                    synchronized (mChunkServers) {
+                        for (MySocket chunkServerSocket : mChunkServers) {
                             if (chunkServerSocket.hasData()) {
                                 Message messageReceived = new Message(chunkServerSocket.ReadBytes());
                                 Message messageSending = ParseChunkInput(messageReceived);
@@ -351,11 +351,11 @@ public class ChunkServer implements Callbackable {
                             }
                         }
                     }
-                    synchronized (mMain.mServerSocket) {
-                        if (mMain.mServerSocket.hasData()) {
-                            Message messageReceived = new Message(mMain.mServerSocket.ReadBytes());
+                    synchronized (mServerSocket) {
+                        if (mServerSocket.hasData()) {
+                            Message messageReceived = new Message(mServerSocket.ReadBytes());
                             Message messageSending = ParseServerInput(messageReceived);
-                            messageSending.SetSocket(mMain.mServerSocket);
+                            messageSending.SetSocket(mServerSocket);
                             mPendingMessages.push(messageSending);
                         }
                     }

@@ -162,6 +162,7 @@ public class Client implements ClientInterface, Callbackable {
             }
         }
         while (!mPendingMessages.isEmpty()) {
+            System.out.println("Sending message");
             mPendingMessages.pop().Send();
         }
         sentence = "";
@@ -651,6 +652,7 @@ public class Client implements ClientInterface, Callbackable {
         toPrimaryChunkServer.WriteInt(numReplicas);
         for (int i = 0; i < numReplicas; ++i) {
             toPrimaryChunkServer.WriteString(replicaInfo[i]);
+            System.out.println("Replica: " + replicaInfo[i]);
         }
         toPrimaryChunkServer.WriteInt(GetRequestWithFilename(filename).GetData().length);
         toPrimaryChunkServer.AppendData(GetRequestWithFilename(filename).GetData());
