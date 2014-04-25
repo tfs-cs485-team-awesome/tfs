@@ -50,7 +50,7 @@ public class ChunkServer implements Callbackable {
         String mChunkFileName;
         File mChunkFile;
         int mCurrentSize;
-        double mLastModified;
+        long mLastModified;
 
         public Chunk(String inName) throws IOException {
             inName = inName.replaceAll("/", ".");
@@ -96,6 +96,8 @@ public class ChunkServer implements Callbackable {
                 out.close();
                 mCurrentSize += 4 + inData.length; //4 is for the int
                 System.out.println("Finished writing file");
+                // update time stamp
+                mLastModified = System.currentTimeMillis()/1000;
             } catch (IOException ioe) {
                 System.out.println("Unable to complete writing to file");
                 System.out.println(ioe.getMessage());
@@ -491,7 +493,8 @@ public class ChunkServer implements Callbackable {
                 BufferedReader br = new BufferedReader(new FileReader(file));
                 String line;
                 while ((line = br.readLine()) != null) {
-                    MakeNewChunk(line);
+                    String chunkData[] = line.split(" ");
+                    MakeNewChunk(chunkData[0]);
                 }
                 br.close();
 
@@ -517,7 +520,7 @@ public class ChunkServer implements Callbackable {
             try {
                 PrintWriter pw = new PrintWriter(new FileWriter("SYSTEM_LOG.txt", false));
                 for (Chunk c : mChunks.values()) {
-                    pw.write(c.mChunkFileName + "\r\n");
+                    pw.write(c.mChunkFileName + " " + c.mLastModified + "\r\n");
                 }
                 pw.close();
             } catch (IOException ie) {
