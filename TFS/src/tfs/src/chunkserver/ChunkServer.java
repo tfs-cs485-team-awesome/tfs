@@ -15,6 +15,7 @@ import java.nio.file.Paths;
 import static java.nio.file.StandardOpenOption.APPEND;
 import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
+import static java.nio.file.StandardOpenOption.WRITE;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -117,6 +118,29 @@ public class ChunkServer implements Callbackable {
                 return false;
             }
             return true;
+        }
+        
+        public boolean ReadAllBytes(byte[] outData) {
+            try {
+                Path filePath = Paths.get(mChunkFileName);
+                outData = Files.readAllBytes(filePath);
+                return true;
+            } catch (IOException ioe) {
+                System.out.println("Problem reading from file");
+                System.out.println(ioe.getMessage());
+            }
+            return false;
+        }
+        
+        public boolean Overwrite(byte[] inData) {
+            try {
+                Path filePath = Paths.get(mChunkFileName);
+                Files.write(filePath, inData, WRITE);
+                return true;
+            } catch (IOException ioe) {
+                System.out.println("Can't overwrite file: " + mChunkFileName);
+            }
+            return false;
         }
 
         //automatically fills up the chunk to the max chunk size
@@ -544,12 +568,50 @@ public class ChunkServer implements Callbackable {
                 case "print":
                     System.out.println(m.ReadString());
                     break;
+                case "cs-updatefile":
+                    EvaluateCSUpdateFile(m, outputToChunk);
+                    break;
+                case "cs-updatefileresponse":
+                    EvaluateCSUpdateFileResponse(m);
+                    break;
                 default:
                     System.out.println("chunk gave chunk server wrong command");
                     break;
             }
             System.out.println("Finished chunk input");
             return outputToChunk;
+        }
+        
+        public void EvaluateCSUpdateFileResponse(Message m) {
+            String fileName = m.ReadString();
+            byte[] fileData = m.ReadData(m.ReadInt());
+            if(!mChunks.containsKey(fileName)) {
+                System.out.println("Received update to chunk I don't have");
+                return;
+            }
+            mChunks.get(fileName).Overwrite(fileData);
+        }
+
+        public void EvaluateCSUpdateFile(Message m, Message output) {
+            //primary receives this from the server that needs to update its files
+            //filename
+            String fileName = m.ReadString();
+            System.out.println("someone needs to update file: " + fileName);
+            if(!mChunks.containsKey(fileName)) {
+                output.WriteDebugStatement("Server: " + mID + " does not have this chunk");
+                return;
+            }
+            Chunk requestedChunk = mChunks.get(fileName);
+            byte[] fileData = new byte[0];
+            if(requestedChunk.ReadAllBytes(fileData)) {
+                output.WriteString("cs-updatefileresponse");
+                output.WriteString(fileName);
+                output.WriteInt(fileData.length);
+                output.AppendData(fileData);
+            } else {
+                output.WriteDebugStatement("Unable to read file: " + fileName);
+            }
+            //requestedChunk.ReadFrom(mClientNum, mClientNum, outData)
         }
 
         public void EvaluateCSAppendFile(Message m, Message output) {
@@ -745,21 +807,22 @@ public class ChunkServer implements Callbackable {
                 System.out.println("Had problem writing data to socket");
             }
         }
-        
+
         public void DeleteFile(String filePath) {
             try {
-                if(filePath.indexOf("/") == 0)
+                if (filePath.indexOf("/") == 0) {
                     filePath = filePath.substring(1);
+                }
                 String chunkPath = filePath.replace("/", ".");
                 // remove virtual file from chunk server
-                if(mChunks.get(chunkPath) != null) {
+                if (mChunks.get(chunkPath) != null) {
                     mChunks.remove(chunkPath);
                     // delete physical file
                     Path path = FileSystems.getDefault().getPath(chunkPath);
                     System.out.println("Deleting file " + path + " from chunk server");
                     Files.deleteIfExists(path);
                 }
-            } catch(IOException ie) {
+            } catch (IOException ie) {
                 System.out.println("Had problem deleting file from chunk server");
             }
         }
