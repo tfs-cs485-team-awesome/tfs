@@ -132,7 +132,7 @@ public class ChunkServer implements Callbackable {
     HashMap<String, Chunk> mChunks;
     MySocket mServerSocket;
     ArrayList<MySocket> mClients;
-    ArrayList<MySocket> mChunkServers;
+    HashMap<String, MySocket> mChunkServers;
     ArrayDeque<Message> mPendingMessages;
     ArrayList<Timer> mPrimaryTimers;
     ArrayDeque<String> mSocketsToClose;
@@ -190,7 +190,7 @@ public class ChunkServer implements Callbackable {
     public void Init() {
         mChunks = new HashMap<String, Chunk>();
         mClients = new ArrayList<MySocket>();
-        mChunkServers = new ArrayList<MySocket>();
+        mChunkServers = new HashMap<String, MySocket>();
         mPendingMessages = new ArrayDeque<>();
         mPrimaryTimers = new ArrayList<Timer>();
         mChunkServices = new HashMap<String, ChunkPendingAppend>();
@@ -239,10 +239,8 @@ public class ChunkServer implements Callbackable {
     }
 
     public MySocket GetSocketForID(String inSocketID) {
-        for (MySocket s : mChunkServers) {
-            if (s.GetID().equalsIgnoreCase(inSocketID)) {
-                return s;
-            }
+        if (mChunkServers.containsKey(inSocketID)) {
+            return mChunkServers.get(inSocketID);
         }
         for (MySocket s : mClients) {
             if (s.GetID().equalsIgnoreCase(inSocketID)) {
@@ -257,7 +255,7 @@ public class ChunkServer implements Callbackable {
     }
 
     public void RemoveSocket(MySocket inSocket) {
-        if (mChunkServers.remove(inSocket)) {
+        if (mChunkServers.remove(inSocket.GetID()) != null) {
             return;
         }
         if (mClients.remove(inSocket)) {
@@ -291,7 +289,7 @@ public class ChunkServer implements Callbackable {
                             synchronized (mChunkServers) {
                                 String id = m.ReadString();
                                 newConnection.SetID(id);
-                                mChunkServers.add(newConnection);
+                                mChunkServers.put(id, newConnection);
                                 mHeartbeatSocket.AddHeartbeat(newConnection.GetID(), m.ReadString());
                                 System.out.println("Adding new chunkserver");
                             }
@@ -342,7 +340,7 @@ public class ChunkServer implements Callbackable {
                         }
                     }
                     synchronized (mChunkServers) {
-                        for (MySocket chunkServerSocket : mChunkServers) {
+                        for (MySocket chunkServerSocket : mChunkServers.values()) {
                             if (chunkServerSocket.hasData()) {
                                 Message messageReceived = new Message(chunkServerSocket.ReadBytes());
                                 Message messageSending = ParseChunkInput(messageReceived);
@@ -389,8 +387,8 @@ public class ChunkServer implements Callbackable {
 
         public Message ParseServerInput(Message m) {
             Message outputToServer = new Message();
-            System.out.println("Parsing server input");
             String input = m.ReadString();
+            System.out.println("Parsing server input " + input);
             switch (input.toLowerCase()) {
                 case "print":
                     System.out.println(m.ReadString());
@@ -400,6 +398,7 @@ public class ChunkServer implements Callbackable {
                     //BecomePrimary(m.ReadString(), outputToServer);
                     break;
                 case "sm-makenewfile":
+                    //TODO handle the fact that this almost always comes after the client request
                     MakeNewChunk(m.ReadString());
                     SaveFileStructure();
                     break;
@@ -453,15 +452,16 @@ public class ChunkServer implements Callbackable {
 
         public void MakeNewChunk(String chunkFilename) {
             try {
+                if (chunkFilename.startsWith("/")) {
+                    chunkFilename = chunkFilename.substring(1, chunkFilename.length());
+                }
                 if (mChunks.get(chunkFilename) == null) {
-                    if (chunkFilename.startsWith("/")) {
-                        chunkFilename = chunkFilename.substring(1, chunkFilename.length());
-                    }
                     chunkFilename = chunkFilename.replaceAll("/", ".");
                     System.out.println("Making new chunk: " + chunkFilename);
                     mChunks.put(chunkFilename, new Chunk(chunkFilename));
                 } else {
-                    System.out.println("Chunk already exists in mChunks wtf");
+                    //System.out.println("Chunk already exists in mChunks wtf");
+                    System.out.println("Chunk already exists");
                 }
             } catch (IOException ioe) {
                 System.out.println("Unable to make new chunk from server");
@@ -489,14 +489,14 @@ public class ChunkServer implements Callbackable {
                     MakeNewChunk(line);
                 }
                 br.close();
-                
+
                 //tell server what chunks I have
                 System.out.println("Telling server what chunks i have");
                 Message chunksToServer = new Message();
                 chunksToServer.WriteString("chunksihave");
                 chunksToServer.WriteString(mID);
                 chunksToServer.WriteInt(mChunks.values().size());
-                for(Chunk c : mChunks.values()) {
+                for (Chunk c : mChunks.values()) {
                     String modifiedChunkFilename = c.mChunkFileName.replaceAll("\\.", "/");
                     chunksToServer.WriteString(modifiedChunkFilename);
                 }
@@ -585,7 +585,7 @@ public class ChunkServer implements Callbackable {
         public Message ParseClientInput(Message m) {
             Message outputToClient = new Message();
             String input = m.ReadString();
-            System.out.println("Parsing client input");
+            System.out.println("Parsing client input " + input);
             switch (input.toLowerCase()) {
                 case "print":
                     System.out.println(m.ReadString());
@@ -603,6 +603,8 @@ public class ChunkServer implements Callbackable {
                 case "readfile":
                     ReadFile(m, outputToClient);
                     break;
+                case "logicalcount":
+                    LogicalFileCount(m.ReadString(), outputToClient);
                 default:
                     System.out.println("Client gave chunk server wrong command");
                     break;
@@ -711,10 +713,14 @@ public class ChunkServer implements Callbackable {
             for (String s : replicaInfo) {
                 System.out.println(s);
                 try {
-                    MySocket newChunkServerSocket = new MySocket(s);
-                    InitConnectionWithChunkServer(newChunkServerSocket);
-                    mChunkServers.add(newChunkServerSocket);
-                    mChunkService.AddServer(newChunkServerSocket);
+                    synchronized (mMain.mChunkServers) {
+                        if (!mMain.mChunkServers.containsKey(s)) {
+                            MySocket newChunkServerSocket = new MySocket(s);
+                            InitConnectionWithChunkServer(newChunkServerSocket);
+                            mChunkServers.put(s, newChunkServerSocket);
+                            mChunkService.AddServer(newChunkServerSocket);
+                        }
+                    }
                 } catch (IOException ioe) {
                     System.out.println(ioe.getMessage());
 
@@ -732,5 +738,36 @@ public class ChunkServer implements Callbackable {
             }
         }
 
+        public void LogicalFileCount(String fileName, Message output) {
+            try {
+                fileName = fileName.replaceAll("/", ".");
+                Path filePath = Paths.get(fileName);
+                File f = new File(fileName);
+                if (f.exists()) {
+                    BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+                    int numFiles = 0;
+                    int skippedBytes = 0;
+                    byte[] intByte = new byte[4];
+                    in.mark(0);
+                    while (in.read() != -1) {
+                        in.reset(); //move back to the point before the byte
+                        in.read(intByte);
+                        skippedBytes += 4;
+                        int bytesToSkip = ByteBuffer.wrap(intByte).getInt();
+                        in.skip(bytesToSkip);
+                        skippedBytes += bytesToSkip;
+                        in.mark(skippedBytes);//mark the position before the next int
+                        numFiles++;
+                    }
+                    in.close();
+                    output.WriteString("cs-logicalfilecountresponse");
+                    output.WriteInt(numFiles);
+                } else {
+                    output.WriteDebugStatement("File " + fileName + " does not exist");
+                }
+            } catch (IOException ioe) {
+                System.out.println(ioe.getMessage());
+            }
+        }
     }
 }

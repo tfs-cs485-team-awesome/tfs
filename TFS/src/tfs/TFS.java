@@ -70,7 +70,7 @@ public class TFS {
             case "client":
                 if (args.length == 2) {
                     Client client = new Client(args[1]);
-                    client.RunLoop();
+                    client.Start();
                 } else {
                     System.out.println("Need to specify address and port for client");
                     return;

@@ -29,14 +29,14 @@ public class TestCases {
         try {
             testClient.ConnectToServer();
             TestCases tc = new TestCases();
-            
+
             System.out.println("Type a test with valid parameters and press enter: ");
             BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
             String input = "";
-            while(true){
+            while (true) {
                 input = br.readLine();
                 String[] params = input.split(" ");
-                switch(params[0].toLowerCase()){
+                switch (params[0].toLowerCase()) {
                     case "test1":
                     case "unit1":
                         int param = Integer.parseInt(params[1]);
@@ -77,8 +77,13 @@ public class TestCases {
                         System.out.println("Invalid test case, please re-enter");
                         break;
                 }
+                while(!br.ready()) {
+                    testClient.RunLoop();
+                }
             }
         } catch (IOException ie) {
+            System.out.println(ie.getMessage());
+        } catch (InterruptedException ie) {
             System.out.println(ie.getMessage());
         }
     }
@@ -88,8 +93,8 @@ public class TestCases {
      */
     public void test1(int numDirs, int numSubs) {
         try {
-            if(numSubs == 0){
-                for(int i = 1; i <= numDirs; i++) {
+            if (numSubs == 0) {
+                for (int i = 1; i <= numDirs; i++) {
                     testClient.CreateDir(Integer.toString(i));
                     //System.out.println(i);
                 }
@@ -100,33 +105,35 @@ public class TestCases {
 
                 int index = 0;
                 int num = 2;
-                while(dirs.size() < numDirs) {
-                    for (int i = 0; i < numSubs; i++){
-                        if (dirs.size() == numDirs){
+                while (dirs.size() < numDirs) {
+                    for (int i = 0; i < numSubs; i++) {
+                        if (dirs.size() == numDirs) {
                             break;
                         }
 
                         dirs.add(dirs.get(index) + "/" + num);
-                        num ++;
+                        num++;
                     }
-                    index ++;
+                    index++;
                 }
-                for(int i = 0; i < dirs.size(); i++){
+                for (int i = 0; i < dirs.size(); i++) {
                     testClient.CreateDir(dirs.get(i));
                     //System.out.println(dirs.get(i));
                 }
             }
-        } catch(IOException e) {
+        } catch (IOException e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
         }
     }
 
-    public void test2(String filePath, int numFiles) {
+    public void test2(String filePath, int numFiles) throws InterruptedException{
 
         try {
-            String[] paths = testClient.GetListFile(filePath);
+            testClient.GetListFile(filePath);
+            String[] paths = testClient.GetListFile();
             for (String path : paths) {
+
                 testClient.ListFile(path);
                 for (int i = 1; i <= numFiles; i++) {
                     String fileName = path + "/File" + Integer.toString(i);
@@ -138,20 +145,20 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-    
-    public void test3(String pathName){
+
+    public void test3(String pathName) {
         try {
             testClient.DeleteFile(pathName);
-        } catch(Exception e){
+        } catch (Exception e) {
             System.out.println(e.getMessage());
             e.printStackTrace();
         }
     }
-    
+
     public void test4(String localpath, String remotepath, int numReplicas) {
         try {
             testClient.WriteFile(localpath, remotepath, numReplicas);
-            
+
         } catch (IOException e) {
             System.out.println("Test 4 failed due to exception " + e.getMessage());
             e.printStackTrace();
@@ -166,7 +173,7 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-    
+
     public void test6(String localpath, String pathname) {
         try {
             testClient.AppendFile(localpath, pathname);
@@ -175,7 +182,7 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-    
+
     public void test7(String pathname) {
         try {
             testClient.CountFiles(pathname);
@@ -184,20 +191,19 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-    
+
     public void test8(String port, String localpath, String pathname, int numInstances) {
         try {
             Client n[] = new Client[numInstances];
             for (int i = 1; i <= numInstances; i++) {
-                    n[i] = new Client(port);
-                    n[i].AppendFile(localpath, pathname);
-              
+                n[i] = new Client(port);
+                n[i].AppendFile(localpath, pathname);
+
             }
         } catch (IOException e) {
             System.out.println("Test 8 failed due to exception " + e.getMessage());
             e.printStackTrace();
         }
     }
-
 
 }

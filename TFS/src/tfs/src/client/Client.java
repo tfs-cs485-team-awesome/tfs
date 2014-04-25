@@ -38,11 +38,14 @@ public class Client implements ClientInterface, Callbackable {
     ArrayDeque<ChunkQueryRequest> mPendingChunkQueries;
     ArrayDeque<Message> mPendingMessages;
     ArrayDeque<String> mSocketsToClose;
+    ArrayDeque<String> mTestInput;
     HeartbeatSocket mHeartbeatSocket;
 
     //TEMP CODE
     String[] mTempFilesUnderNode;
+    boolean mTempFilesUnderNodeReady = false;
     FileNode mTempFileNode;
+    boolean mTempFileNodeReady = false;
     //END TEMP CODE
 
     /**
@@ -71,6 +74,7 @@ public class Client implements ClientInterface, Callbackable {
         mPendingChunkQueries = new ArrayDeque<>();
         mPendingMessages = new ArrayDeque<>();
         mSocketsToClose = new ArrayDeque<>();
+        mTestInput = new ArrayDeque<>();
     }
 
     public final String GetIP() throws IOException {
@@ -148,28 +152,40 @@ public class Client implements ClientInterface, Callbackable {
                 }
                 didReceiveMessage |= true;
             }
-            
+
         }
         return didReceiveMessage;
     }
 
     public boolean SendMessage() throws IOException {
-        Message toServer = new Message();
-
+        boolean sentMessage = false;
         if (!sentence.isEmpty()) {
+            Message toServer = new Message();
+
             String[] sentenceTokenized = sentence.split(" ");
             if (ParseUserInput(sentenceTokenized, toServer)) {
-                serverSocket.WriteMessage(toServer);
+                toServer.SetSocket(serverSocket);
+                mPendingMessages.push(toServer);
                 sentence = "";
-                return true;
+            }
+        }
+        while (!mTestInput.isEmpty()) {
+            Message toServer = new Message();
+
+            System.out.println(mTestInput.getFirst());
+            String[] sentenceTokenized = mTestInput.pop().split(" ");
+            if (ParseUserInput(sentenceTokenized, toServer)) {
+                toServer.SetSocket(serverSocket);
+                mPendingMessages.push(toServer);
             }
         }
         while (!mPendingMessages.isEmpty()) {
-            System.out.println("Sending message");
+
             mPendingMessages.pop().Send();
+            sentMessage = true;
         }
         sentence = "";
-        return false;
+        return sentMessage;
     }
 
     public void ConnectToServer() throws IOException {
@@ -197,56 +213,63 @@ public class Client implements ClientInterface, Callbackable {
         }
     }
 
-    public void RunLoop() {
-        String modifiedSentence = "";
+    public void RunLoop() throws IOException, InterruptedException {
+        try {
+            SendMessage();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+        ReceiveMessage();
+        synchronized (mSocketsToClose) {
+            while (!mSocketsToClose.isEmpty()) {
+                String socketID = mSocketsToClose.pop();
+                MySocket socketToClose = GetSocketForID(socketID);
+                if (socketToClose == null) {
+                    System.out.println("Cannot find socket: " + socketID);
+                    continue;
+                }
+                System.out.println("Closing socket " + socketID);
+                if (socketToClose.GetID().equalsIgnoreCase(serverSocket.GetID())) {
+                    break;
+                }
+                socketToClose.close();
+                RemoveSocket(socketToClose);
+            }
+        }
+        Thread.sleep(50);
+    }
+
+    public void Start() {
         BufferedReader inFromUser = new BufferedReader(new InputStreamReader(System.in));
         System.out.println("Starting client on ip: " + mServerIp + " and port: " + mServerPortNum);
         while (true) {
             try {
-                ConnectToServer();
+                try {
+                    ConnectToServer();
 
-                while (true) {
-
-                    if (System.in.available() > 0) {
-                        sentence = inFromUser.readLine();
+                    while (true) {
+                        if (System.in.available() > 0) {
+                            sentence = inFromUser.readLine();
+                        }
+                        RunLoop();
                     }
-                    if (false /*eventually add heartbeat message check in here*/) {
-                        break;
-                    }
-                    try {
-                        SendMessage();
-                    } catch (IOException e) {
-                        System.out.println(e.getMessage());
-                    }
-                    ReceiveMessage();
-                    synchronized (mSocketsToClose) {
-                        while (!mSocketsToClose.isEmpty()) {
-                            String socketID = mSocketsToClose.pop();
-                            MySocket socketToClose = GetSocketForID(socketID);
-                            if (socketToClose == null) {
-                                System.out.println("Cannot find socket: " + socketID);
-                                continue;
-                            }
-                            System.out.println("Closing socket " + socketID);
-                            if (socketToClose.GetID().equalsIgnoreCase(serverSocket.GetID())) {
-                                break;
-                            }
-                            socketToClose.close();
-                            RemoveSocket(socketToClose);
+                } catch (IOException e) {
+                    if (e.getMessage().contentEquals("Connection refused")) {
+                        System.out.println("Server is not online.  Attempting to reconnect in 3s");
+                        try {
+                            Thread.sleep(3000);
+                        } catch (InterruptedException e1) {
+                            System.out.println("Exception sleeping");
+                            System.out.println(e1.getMessage());
                         }
                     }
+                } catch (InterruptedException ie) {
+                    System.out.println(ie.getMessage());
+                }finally {
+                    serverSocket.close();
                 }
-                serverSocket.close();
-            } catch (IOException e) {
-                if (e.getMessage().contentEquals("Connection refused")) {
-                    System.out.println("Server is not online.  Attempting to reconnect in 3s");
-                    try {
-                        Thread.sleep(3000);
-                    } catch (InterruptedException e1) {
-                        System.out.println("Exception sleeping");
-                        System.out.println(e1.getMessage());
-                    }
-                }
+            } catch (IOException ioe) {
+                System.out.println(ioe.getMessage());
             }
         }
     }
@@ -595,8 +618,9 @@ public class Client implements ClientInterface, Callbackable {
                 break;
             case "sm-appendresponse":
                 SMAppendFileResponse(m);
-            case "sm-writefileresponse":
-                WriteFileResponse(m);
+                break;
+            case "sm-writeresponse":
+                SMAppendFileResponse(m);
                 break;
             case "sm-seekfileresponse":
                 //name datalen data
@@ -605,8 +629,9 @@ public class Client implements ClientInterface, Callbackable {
             case "sm-getnoderesponse": {
                 //try {
                 mTempFileNode = new FileNode(false);
-                //mTempFileNode.ReadFromMessage(m);
+                mTempFileNodeReady = true;
 
+                //mTempFileNode.ReadFromMessage(m);
 //                } catch (IOException ioe) {
 //                    System.out.println("Problem deserializing file node");
 //                    System.out.println(ioe.getMessage());
@@ -615,6 +640,7 @@ public class Client implements ClientInterface, Callbackable {
             }
             case "sm-getfilesunderpathresponse": {
                 mTempFilesUnderNode = GetFilesUnderNodeResponse(m);
+                mTempFilesUnderNodeReady = true;
                 break;
             }
             case "sm-readfileresponse":
@@ -635,7 +661,6 @@ public class Client implements ClientInterface, Callbackable {
         //filename, primary info, num replicas, replicainfo
         String filename = m.ReadString();
         String primaryChunkInfo = m.ReadString();
-        System.out.println("Append primary info " + primaryChunkInfo);
         int numReplicas = m.ReadInt();
         String[] replicaInfo = new String[numReplicas];
         for (int i = 0; i < numReplicas; ++i) {
@@ -655,7 +680,6 @@ public class Client implements ClientInterface, Callbackable {
         toPrimaryChunkServer.WriteInt(numReplicas);
         for (int i = 0; i < numReplicas; ++i) {
             toPrimaryChunkServer.WriteString(replicaInfo[i]);
-            System.out.println("Replica: " + replicaInfo[i]);
         }
         toPrimaryChunkServer.WriteInt(GetRequestWithFilename(filename).GetData().length);
         toPrimaryChunkServer.AppendData(GetRequestWithFilename(filename).GetData());
@@ -792,84 +816,122 @@ public class Client implements ClientInterface, Callbackable {
 
     @Override
     public void CreateFile(String fileName) throws IOException {
-        sentence = "touch " + fileName;
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
+        //sentence = "touch " + fileName;
+        mTestInput.push("touch " + fileName);
+        /*
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }
+         */
 
     }
 
     @Override
     public void CreateDir(String dirName) throws IOException {
-        sentence = "mkdir " + dirName;
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
+        //sentence = "mkdir " + dirName;
+        mTestInput.push("mkdir " + dirName);
+        /*
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }
+         */
     }
 
     @Override
     public void DeleteFile(String fileName) throws IOException {
-        sentence = "rm " + fileName;
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
+        /*sentence = "rm " + fileName;
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }*/
+        mTestInput.push("rm " + fileName);
     }
 
     @Override
     public void ListFile(String path) throws IOException {
-        sentence = "ls " + path;
-        System.out.println(sentence);
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
+        /*
+         sentence = "ls " + path;
+         System.out.println(sentence);
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }*/
+        mTestInput.push("ls " + path);
     }
 
     @Override
-    public String[] GetListFile(String path) throws IOException {
-        sentence = "GetFilesUnderPath " + path;
-        SendMessage();
-        while (!ReceiveMessage());
+    public void GetListFile(String path) throws IOException {
+        /*
+         sentence = "GetFilesUnderPath " + path;
+         SendMessage();
+         while (!ReceiveMessage());*/
+        mTestInput.push("GetFilesUnderPath " + path);
+    }
+
+    @Override
+    public String[] GetListFile() throws IOException, InterruptedException {
+        while (!mTempFilesUnderNodeReady) {
+            RunLoop();
+        }
+        mTempFilesUnderNodeReady = false;
         return mTempFilesUnderNode;
     }
 
     @Override
     public void ReadFile(String remotefilename, String localfilename) throws IOException {
-        sentence = "read " + remotefilename + " " + localfilename;
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
-        while (!ReceiveMessage());
+        /*
+         sentence = "read " + remotefilename + " " + localfilename;
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }
+         while (!ReceiveMessage());*/
+        mTestInput.push("read " + remotefilename + " " + localfilename);
     }
 
     @Override
     public void WriteFile(String localfilename, String remotefilename, int numReplicas) throws IOException {
-        sentence = "write " + localfilename + " " + remotefilename + " " + numReplicas;
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
+        /*
+         sentence = "write " + localfilename + " " + remotefilename + " " + numReplicas;
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }*/
+        mTestInput.push("write " + localfilename + " " + remotefilename + " " + numReplicas);
         //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
 
     @Override
     public void AppendFile(String localfilename, String remotefilename) throws IOException {
-        sentence = "append " + localfilename + " " + remotefilename;
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
+        /*
+         sentence = "append " + localfilename + " " + remotefilename;
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }
+         SendMessage();*/
+        mTestInput.push("append " + localfilename + " " + remotefilename);
     }
 
     @Override
-    public FileNode GetAtFilePath(String path) throws IOException {
-        sentence = "GetNode " + path;
-        if (SendMessage()) {
-            while (!ReceiveMessage());
+    public void GetAtFilePath(String path) throws IOException {
+        /*
+         sentence = "GetNode " + path;
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }
+         return mTempFileNode;
+         */
+        mTestInput.push("GetNode " + path);
+    }
+
+    @Override
+    public FileNode GetAtFilePath() throws IOException, InterruptedException {
+        while (!mTempFileNodeReady) {
+            RunLoop();
         }
+        mTempFileNodeReady = false;
         return mTempFileNode;
     }
 
@@ -884,10 +946,12 @@ public class Client implements ClientInterface, Callbackable {
 
     @Override
     public void CountFiles(String remotename) throws IOException {
-        sentence = "LogicalFileCount " + remotename;
-        if (SendMessage()) {
-            while (!ReceiveMessage());
-        }
+        /*
+         sentence = "LogicalFileCount " + remotename;
+         if (SendMessage()) {
+         while (!ReceiveMessage());
+         }*/
+        mTestInput.push("LogicalFileCount " + remotename);
 
     }
 
