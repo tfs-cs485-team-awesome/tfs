@@ -18,9 +18,11 @@ public interface ClientInterface {
     public void CreateDir(String dirName) throws IOException;
     public void DeleteFile(String fileName) throws IOException;
     public void ListFile(String path) throws IOException;
-    public String[] GetListFile(String path) throws IOException;
+    public void GetListFile(String path) throws IOException;
+    public String[] GetListFile() throws IOException, InterruptedException;
     public void ReadFile(String remotefilename, String localfilename) throws IOException;
-    public FileNode GetAtFilePath(String path) throws IOException;
+    public void GetAtFilePath(String path) throws IOException;
+    public FileNode GetAtFilePath() throws IOException, InterruptedException;
     public void WriteFile(String localfilename, String remotefilename, int numReplicas) throws IOException;
     public void AppendFile(String localfilename, String remotefilename) throws IOException;
     public void CountFiles(String remotename) throws IOException;
