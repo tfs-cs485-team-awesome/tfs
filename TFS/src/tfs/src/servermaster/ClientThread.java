@@ -282,7 +282,7 @@ public class ClientThread extends Thread {
     }
 
     public void CreateNewFile(String name, Message m) {
-        CreateNewFile(name, 3, m);
+        CreateNewFile(name, 2, m);
     }
 
     public void CreateNewFile(String name, int numReplicas, Message m) {

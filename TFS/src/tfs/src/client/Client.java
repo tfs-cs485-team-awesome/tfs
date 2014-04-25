@@ -834,6 +834,10 @@ public class Client implements ClientInterface, Callbackable {
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
+        if (SendMessage()) {
+            while (!ReceiveMessage());
+        }
+        while (!ReceiveMessage());
     }
 
     @Override

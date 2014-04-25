@@ -624,10 +624,12 @@ public class ChunkServer implements Callbackable {
                 Path filePath = Paths.get(fileName);
                 System.out.println("Reading file at " + filePath.toString());
                 byte[] data = Files.readAllBytes(filePath);
+                byte[] dataWithoutSizeBytes = new byte[data.length - 4];
+                System.arraycopy(data, 4, dataWithoutSizeBytes, 0, data.length - 4);
                 output.WriteString("cs-readfileresponse");
                 output.WriteString(fileName);
-                output.WriteInt(data.length);
-                output.AppendData(data);
+                output.WriteInt(dataWithoutSizeBytes.length);
+                output.AppendData(dataWithoutSizeBytes);
             } catch (IOException ioe) {
                 System.out.println("Problem reading from file");
                 System.out.println(ioe.getMessage());
