@@ -7,7 +7,7 @@ package tfs.util;
 
 import java.io.*;
 import java.util.ArrayList;
-import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.*;
 
 /**
  *
@@ -23,6 +23,7 @@ public class FileNode implements Serializable {
         if (isFile) {
             mFileMetadata = new FileMetadata();
         }
+        mLock = new ReentrantReadWriteLock();
     }
 
     public class ChunkMetadata {

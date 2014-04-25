@@ -25,9 +25,9 @@ public class TestCases {
     static Client testClient;
 
     public static void main(String[] args) {
-        //testClient = new Client(args[0]);
+        testClient = new Client(args[0]);
         try {
-            //testClient.ConnectToServer();
+            testClient.ConnectToServer();
             TestCases tc = new TestCases();
             
             System.out.println("Type a test with valid parameters and press enter: ");
@@ -78,8 +78,8 @@ public class TestCases {
                         break;
                 }
             }
-        } catch (Exception e) {
-            System.out.println("Unrecognized command.");
+        } catch (IOException ie) {
+            System.out.println(ie.getMessage());
         }
     }
 
