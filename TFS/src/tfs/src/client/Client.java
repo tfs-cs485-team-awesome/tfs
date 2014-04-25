@@ -135,14 +135,13 @@ public class Client implements ClientInterface, Callbackable {
      *
      */
     public boolean ReceiveMessage() throws IOException, UnknownHostException {
-        boolean didReceiveMessage = false;
         if (serverSocket.hasData()) {
             Message fromServer = new Message(serverSocket.ReadBytes());
             while (!fromServer.isFinished()) {
                 //message has data
                 ParseServerInput(fromServer);
             }
-            didReceiveMessage |= true;
+            return true;
         }
         for (MySocket chunkSocket : mChunkServerSockets) {
             if (chunkSocket.hasData()) {
@@ -150,11 +149,9 @@ public class Client implements ClientInterface, Callbackable {
                 while (!fromChunk.isFinished()) {
                     ParseChunkInput(fromChunk);
                 }
-                didReceiveMessage |= true;
             }
-
         }
-        return didReceiveMessage;
+        return false;
     }
 
     public boolean SendMessage() throws IOException {
@@ -810,8 +807,7 @@ public class Client implements ClientInterface, Callbackable {
     public void CSReadFileResponse(Message m) throws IOException {
         System.out.println("Got csreadfileresponse");
         String filename = m.ReadString();
-        filename = filename.replaceAll("\\.", "/");
-        ChunkQueryRequest chunkQuery = GetRequestWithFilename(filename); //TODO check out bug with this when doing test5 with folders
+        ChunkQueryRequest chunkQuery = GetRequestWithFilename(filename);
         if (chunkQuery == null) {
             System.out.println("Query from chunk server did not match any on this client");
             return;

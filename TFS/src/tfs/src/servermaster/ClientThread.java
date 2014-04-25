@@ -602,10 +602,20 @@ public class ClientThread extends Thread {
             m.WriteDebugStatement("Deleting file " + filePath);
             parentNode.mChildren.remove(file);
             try {
-                Path path = FileSystems.getDefault().getPath(filePath);
-                Files.deleteIfExists(path);
-            } catch (IOException ie) {
-                System.out.println("Could not delete physical file");
+                FileNode.ChunkMetadata chunk = file.GetChunkDataAtIndex(0);
+                Message toChunkServer = new Message();
+                toChunkServer.WriteString("sm-deletefile");
+                toChunkServer.WriteString(filePath);
+                toChunkServer.SetSocket(mMaster.GetChunkSocket(chunk.GetPrimaryLocation()));
+                mPendingMessages.push(toChunkServer);
+                for (int i = 0; i < chunk.GetReplicaLocations().size(); i++) {
+                    chunk = file.GetChunkDataAtIndex(0);
+                    toChunkServer = new Message();
+                    toChunkServer.WriteString("sm-deletefile");
+                    toChunkServer.WriteString(filePath);
+                    toChunkServer.SetSocket(mMaster.GetChunkSocket(chunk.GetReplicaLocations().get(i)));
+                    mPendingMessages.push(toChunkServer);
+                }
             } finally {
                 parentNode.ReleaseWriteLock();
             }
