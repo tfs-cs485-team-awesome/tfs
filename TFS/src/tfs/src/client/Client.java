@@ -594,14 +594,14 @@ public class Client implements ClientInterface, Callbackable{
                 SeekFileResponse(m);
                 break;
             case "sm-getnoderesponse": {
-                try {
+                //try {
                     mTempFileNode = new FileNode(false);
-                    mTempFileNode.ReadFromMessage(m);
+                    //mTempFileNode.ReadFromMessage(m);
 
-                } catch (IOException ioe) {
-                    System.out.println("Problem deserializing file node");
-                    System.out.println(ioe.getMessage());
-                }
+//                } catch (IOException ioe) {
+//                    System.out.println("Problem deserializing file node");
+//                    System.out.println(ioe.getMessage());
+//                }
                 break;
             }
             case "sm-getfilesunderpathresponse": {

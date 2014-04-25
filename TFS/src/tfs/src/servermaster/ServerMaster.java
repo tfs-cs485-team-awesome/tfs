@@ -167,7 +167,7 @@ public class ServerMaster implements Callbackable {
                 return null;
             }
             // if a match is found, set current file to the match
-            curFile.mReadLock = true;
+            //curFile.mReadLock = true;
             for (FileNode file : curFile.mChildren) {
                 if (file.mName.equalsIgnoreCase(dir)) {
                     curFile = file;
@@ -357,13 +357,16 @@ public class ServerMaster implements Callbackable {
                 }
             }
             // check for locks in the parent node
-            if (parentNode.mReadLock || parentNode.mWriteLock) {
-                return;
+            if (parentNode.RequestWriteLock()) {
+                try {
+                    FileNode newDir = new FileNode(false);
+                    newDir.mIsDirectory = true;
+                    newDir.mName = name.substring(lastIndex + 1, name.length());
+                    parentNode.mChildren.add(newDir);
+                } finally {
+                    parentNode.ReleaseWriteLock();
+                }
             }
-            FileNode newDir = new FileNode(false);
-            newDir.mIsDirectory = true;
-            newDir.mName = name.substring(lastIndex + 1, name.length());
-            parentNode.mChildren.add(newDir);
         }
 
         public void CreateNewSetupFile(String name) {
@@ -414,67 +417,6 @@ public class ServerMaster implements Callbackable {
                     output.WriteDebugStatement("File " + readPath + " is a directory on the server");
                 } else {
                     fn.GetChunkDataAtIndex(0).SetChunkLocation(inChunkServerLocation);
-                }
-            }
-
-        }
-
-        public void GetValidityOfPath(String path, Message m) {
-            FileNode nodeAtPath = GetAtPath(path);
-            m.WriteString("SM-TestPathResponse");
-            if (nodeAtPath == null) {
-                m.WriteInt(0);
-                m.WriteDebugStatement("Path " + path + " does not exist");
-            } else {
-                m.WriteInt(1);
-            }
-        }
-
-        /**
-         * Retrieves and returns a file node specified in the parameter
-         *
-         * @param filePath path to file
-         * @return file node
-         */
-        public void GetFilesUnderPath(String path, Message m) {
-            FileNode topNode = GetAtPath(path);
-            if (topNode == null) {
-                System.out.println("Path does not exist");
-                m.WriteDebugStatement("Path does not exist");
-                return;
-            }
-            ArrayList<String> totalPath = new ArrayList<>();
-            m.WriteString("SM-GetFilesUnderPathResponse");
-            totalPath.add(path);
-            for (FileNode fn : topNode.mChildren) {
-                RecurseGetFilesUnderPath(fn, totalPath, path, m);
-            }
-            m.WriteInt(totalPath.size());
-            for (String s : totalPath) {
-                m.WriteString(s);
-            }
-        }
-
-        public void RemoveLocationFromFiles(String ReplicaInfo) {
-            RecurseRemoveLocationFromFiles(mFileRoot, ReplicaInfo);
-        }
-
-        public void RecurseRemoveLocationFromFiles(FileNode curNode, String ReplicaInfo) {
-            if (curNode.mIsDirectory) {
-                for (FileNode fn : curNode.mChildren) {
-                    RecurseRemoveLocationFromFiles(fn, ReplicaInfo);
-                }
-            } else {
-                curNode.GetChunkDataAtIndex(0).RemoveChunkLocation(ReplicaInfo);
-            }
-        }
-
-        public void RecurseGetFilesUnderPath(FileNode curNode, ArrayList<String> totalPaths, String parentPath, Message m) {
-            if (curNode.mIsDirectory) {
-                totalPaths.add(parentPath + "/" + curNode.mName);
-                System.out.println(parentPath + "/" + curNode.mName);
-                for (FileNode fn : curNode.mChildren) {
-                    RecurseGetFilesUnderPath(fn, totalPaths, parentPath + "/" + curNode.mName, m);
                 }
             }
         }
