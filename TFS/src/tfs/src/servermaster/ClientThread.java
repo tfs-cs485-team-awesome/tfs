@@ -6,6 +6,7 @@
 package tfs.src.servermaster;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -22,6 +23,8 @@ import tfs.util.*;
  */
 public class ClientThread extends Thread {
 
+    private volatile boolean isRunning = true;
+    
     MySocket mSocket;
     ArrayDeque<Message> mPendingMessages;
     FileNode mFileRoot;
@@ -31,28 +34,49 @@ public class ClientThread extends Thread {
         mPendingMessages = new ArrayDeque<>();
     }
 
-    public ClientThread(MySocket inSocket, ServerMaster inMaster, FileNode inNode) {
+    public final void SendID() {
+        Message sendID = new Message();
+        sendID.WriteString("setid");
+        sendID.WriteString(mSocket.GetID());
+        sendID.SetSocket(mSocket);
+        mPendingMessages.push(sendID);
+    }
+    
+    public final String GetID() {
+        return mSocket.GetID();
+    }
+
+    public ClientThread(MySocket inSocket, ServerMaster inMaster, String inID, FileNode inNode) {
         mSocket = inSocket;
+        mSocket.SetID(inID);
         mFileRoot = inNode;
         mMaster = inMaster;
         Init();
+        SendID();
     }
 
     public void Close() throws IOException {
         mSocket.close();
+        isRunning = false;
     }
 
     @Override
     public void run() {
-        try {
-            if (mSocket.hasData()) {
-                Message messageReceived = new Message(mSocket.ReadBytes());
-                Message messageSending = ParseClientInput(messageReceived);
-                messageSending.SetSocket(mSocket);
-                mPendingMessages.push(messageSending);
+        System.out.println("Running client thread");
+        while (isRunning) {
+            try {
+                if (mSocket.hasData()) {
+                    Message messageReceived = new Message(mSocket.ReadBytes());
+                    Message messageSending = ParseClientInput(messageReceived);
+                    messageSending.SetSocket(mSocket);
+                    mPendingMessages.push(messageSending);
+                }
+                if (!mPendingMessages.isEmpty()) {
+                    mPendingMessages.pop().Send();
+                }
+            } catch (IOException ioe) {
+                System.out.println(ioe.getMessage());
             }
-        } catch (IOException ioe) {
-            System.out.println(ioe.getMessage());
         }
     }
 
@@ -95,55 +119,6 @@ public class ClientThread extends Thread {
                 allFiles.add(path + "/" + child.mName);
             }
         }
-    }
-
-    public void SaveFileStructure(Boolean isDirectory, String name) {
-        System.out.println("Saving file structure");
-        FileNode file = GetAtPath(name);
-        if (file != null) {
-            return;
-        }
-        try {
-            PrintWriter pw = new PrintWriter(new FileWriter("SYSTEM_LOG.txt", true));
-            String newline;
-            if (isDirectory) {
-                newline = "DIRECTORY " + name + "\n";
-            } else {
-                newline = "FILE " + name + "\n";
-            }
-            pw.write(newline);
-            pw.close();
-        } catch (IOException ie) {
-            System.out.println("Unable to write to TFS structure file");
-        }
-    }
-
-    public void AssignChunkServerToFile(String fileName) {
-        //make a random chunk server the location of this new file
-        /*
-         FileNode node = GetAtPath(fileName);
-         if (!mChunkServers.isEmpty()) {
-         Random newRandom = new Random();
-         MySocket chunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
-         node.AddChunkAtLocation(chunkServerSocket.GetID());
-         Message newChunkMessage = new Message();
-         newChunkMessage.WriteString("sm-makenewfile");
-         newChunkMessage.WriteString(fileName);
-         newChunkMessage.SetSocket(chunkServerSocket);
-         mPendingMessages.push(newChunkMessage);
-         for (int i = 0; i < (mChunkServers.size() - 1 < NUM_REPLICAS ? mChunkServers.size() - 1 : NUM_REPLICAS); ++i) {
-         MySocket newChunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
-         while (node.DoesChunkExistAtLocation(0, newChunkServerSocket.GetID())) {
-         newChunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
-         }
-         System.out.println("Adding replica at server: " + newChunkServerSocket.GetID());
-         node.AddReplicaAtLocation(0, newChunkServerSocket.GetID());
-         }
-         } else {
-         System.out.println("No Chunk servers connected to server");
-         }
-         */
-
     }
 
     public FileNode GetAtPath(String filePath) {
@@ -270,7 +245,7 @@ public class ClientThread extends Thread {
             return;
         }
         // save file structure
-        SaveFileStructure(true, name);
+        mMaster.SaveFileStructure(true, name);
         // create new directory
         System.out.println("Creating new dir " + name);
         m.WriteDebugStatement("Creating new dir " + name);
@@ -326,7 +301,7 @@ public class ClientThread extends Thread {
             return;
         }
         // save file structure
-        SaveFileStructure(false, name);
+        mMaster.SaveFileStructure(false, name);
         // create new file
         System.out.println("Creating new file " + name);
         m.WriteDebugStatement("Creating new file " + name);
@@ -338,7 +313,7 @@ public class ClientThread extends Thread {
         m.WriteDebugStatement("Finished creating new dir");
 
         //make a random chunk server the location of this new file
-        AssignChunkServerToFile(name);
+        mMaster.AssignChunkServerToFile(name);
     }
 
     public void AppendFile(String fileName, Message output) {
@@ -363,7 +338,7 @@ public class ClientThread extends Thread {
         Message toChunkServer = new Message();
         toChunkServer.WriteString("sm-makeprimary");
         toChunkServer.WriteString(fileName);
-        toChunkServer.SetSocket(GetSocket(chunk.GetPrimaryLocation()));
+        toChunkServer.SetSocket(mMaster.GetChunkSocket(chunk.GetPrimaryLocation()));
         //toChunkServer.Send();
         mPendingMessages.push(toChunkServer);
     }
@@ -379,7 +354,7 @@ public class ClientThread extends Thread {
         CreateNewFile(fileName, output);
         file = GetAtPath(fileName);
         Message toChunkServer = new Message();
-        MySocket chunkServerSocket = GetSocket(file.GetChunkLocationAtIndex(0));
+        MySocket chunkServerSocket = mMaster.GetChunkSocket(file.GetChunkLocationAtIndex(0));
         toChunkServer.SetSocket(chunkServerSocket);
         toChunkServer.WriteDebugStatement("Making primary");
         toChunkServer.WriteString("sm-makeprimary");
@@ -590,6 +565,43 @@ public class ClientThread extends Thread {
             }
         } catch (IOException ie) {
             System.out.println("Failed to delete file from the TFS file structure");
+        }
+    }
+
+    public void LogicalFileCount(String fileName, Message output) {
+        FileNode file = GetAtPath(fileName);
+        if (file == null) {
+            output.WriteDebugStatement("File " + fileName + " does not exist");
+            return;
+        }
+        try {
+            fileName = fileName.replaceAll("/", ".");
+            Path filePath = Paths.get(fileName);
+            File f = new File(fileName);
+            if (f.exists()) {
+                BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+                int numFiles = 0;
+                int skippedBytes = 0;
+                byte[] intByte = new byte[4];
+                in.mark(0);
+                while (in.read() != -1) {
+                    in.reset(); //move back to the point before the byte
+                    in.read(intByte);
+                    skippedBytes += 4;
+                    int bytesToSkip = ByteBuffer.wrap(intByte).getInt();
+                    in.skip(bytesToSkip);
+                    skippedBytes += bytesToSkip;
+                    in.mark(skippedBytes);//mark the position before the next int
+                    numFiles++;
+                }
+                output.WriteString("SM-LogicalFileCountResponse");
+                output.WriteInt(numFiles);
+            } else {
+                output.WriteDebugStatement("File " + fileName + " does not exist");
+            }
+        } catch (IOException ioe) {
+            System.out.println(ioe.getMessage());
+            ioe.printStackTrace();
         }
     }
 }

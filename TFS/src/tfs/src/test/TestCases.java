@@ -25,9 +25,9 @@ public class TestCases {
     static Client testClient;
 
     public static void main(String[] args) {
-        //testClient = new Client(args[0]);
+        testClient = new Client(args[0]);
         try {
-            //testClient.ConnectToServer();
+            testClient.ConnectToServer();
             TestCases tc = new TestCases();
             
             System.out.println("Type a test with valid parameters and press enter: ");
@@ -191,6 +191,7 @@ public class TestCases {
             for (int i = 1; i <= numInstances; i++) {
                     n[i] = new Client(port);
                     n[i].AppendFile(localpath, pathname);
+              
             }
         } catch (IOException e) {
             System.out.println("Test 8 failed due to exception " + e.getMessage());

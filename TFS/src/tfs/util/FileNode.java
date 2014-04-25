@@ -12,7 +12,7 @@ import java.io.*;
  *
  * @author laurencewong
  */
-public class FileNode implements Serializable {
+public class FileNode{
 
     public FileNode(boolean isFile) {
         mIsDirectory = !isFile;
@@ -133,7 +133,6 @@ public class FileNode implements Serializable {
     public ChunkMetadata GetChunkDataAtIndex(int inIndex) {
         if (inIndex >= mFileMetadata.mChunks.size() || inIndex < 0) {
             System.out.println("Attempted to get chunk data at invalid index: " + inIndex);
-
             return null;
         }
         return mFileMetadata.mChunks.get(inIndex);

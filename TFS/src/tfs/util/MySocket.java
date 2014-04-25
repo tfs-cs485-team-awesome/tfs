@@ -91,13 +91,9 @@ public class MySocket implements Callbackable{
     }
 
     public byte[] ReadBytes() throws IOException {
-        System.out.println("reading");
         int byteArrayLength = mDataInput.readInt();
-        System.out.println("Reading int");
         byte[] readBytes = new byte[byteArrayLength];
-        System.out.println("making new byte array");
         mDataInput.read(readBytes);
-        System.out.println("Reading bytes");
         return readBytes;
     }
 

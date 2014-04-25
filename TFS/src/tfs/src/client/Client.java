@@ -83,6 +83,7 @@ public class Client implements ClientInterface, Callbackable{
             System.out.println("Telling master server that I am a client");
             Message toServer = new Message();
             toServer.WriteString("Client");
+            toServer.WriteString(GetIP());
             inSocket.WriteMessage(toServer);
             while (!inSocket.hasData()) {
             }
