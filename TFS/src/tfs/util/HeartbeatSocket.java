@@ -124,7 +124,7 @@ public class HeartbeatSocket extends Thread {
                     SendHeartbeat();
                 }
             }
-        }, 0, 100);
+        }, 0, 250);
     }
 
     private void SendHeartbeat() {
@@ -169,7 +169,7 @@ public class HeartbeatSocket extends Thread {
         synchronized (mStatuses) {
             for (HeartbeatStatus hs : mStatuses.values()) {
                 if (hs.mTimeout > MAX_TIMEOUT) {
-                    System.out.println(hs.mID + " has not responded for " + 100*MAX_TIMEOUT + " ms; disconnecting");
+                    System.out.println(hs.mID + " has not responded for " + MAX_TIMEOUT + " seconds; disconnecting");
                     deadStatuses.add(hs);
                 }
             }
