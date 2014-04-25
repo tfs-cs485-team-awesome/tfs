@@ -8,6 +8,7 @@ package tfs.src.chunkserver;
 import java.io.*;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -403,7 +404,9 @@ public class ChunkServer implements Callbackable {
                     MakeNewChunk(m.ReadString());
                     SaveFileStructure();
                     break;
-
+                case "sm-deletefile":
+                    DeleteFile(m.ReadString());
+                    SaveFileStructure();
             }
             return outputToServer;
         }
@@ -729,6 +732,24 @@ public class ChunkServer implements Callbackable {
                 mChunkService.SendRequest();
             } catch (IOException ioe) {
                 System.out.println("Had problem writing data to socket");
+            }
+        }
+        
+        public void DeleteFile(String filePath) {
+            try {
+                if(filePath.indexOf("/") == 0)
+                    filePath = filePath.substring(1);
+                String chunkPath = filePath.replace("/", ".");
+                // remove virtual file from chunk server
+                if(mChunks.get(chunkPath) != null) {
+                    mChunks.remove(chunkPath);
+                    // delete physical file
+                    Path path = FileSystems.getDefault().getPath(chunkPath);
+                    System.out.println("Deleting file " + path + " from chunk server");
+                    Files.deleteIfExists(path);
+                }
+            } catch(IOException ie) {
+                System.out.println("Had problem deleting file from chunk server");
             }
         }
 
