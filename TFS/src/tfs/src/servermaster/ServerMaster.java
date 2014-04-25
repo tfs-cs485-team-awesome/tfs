@@ -193,6 +193,7 @@ public class ServerMaster implements Callbackable {
                 RecurseRemoveLocationFromFiles(fn, ReplicaInfo);
             }
         } else {
+
             curNode.GetChunkDataAtIndex(0).RemoveChunkLocation(ReplicaInfo);
         }
     }
@@ -431,7 +432,12 @@ public class ServerMaster implements Callbackable {
                 } else if (fn.mIsDirectory) {
                     output.WriteDebugStatement("File " + readPath + " is a directory on the server");
                 } else {
-                    fn.GetChunkDataAtIndex(0).SetChunkLocation(inChunkServerLocation);
+                    if (fn.GetChunkDataAtIndex(0) == null) {
+                        System.out.println(inChunkServerLocation);
+                        fn.AddChunkAtLocation(inChunkServerLocation);
+                    } else {
+                        fn.GetChunkDataAtIndex(0).SetChunkLocation(inChunkServerLocation);
+                    }
                 }
             }
         }

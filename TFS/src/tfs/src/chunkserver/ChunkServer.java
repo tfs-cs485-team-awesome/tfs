@@ -51,13 +51,19 @@ public class ChunkServer implements Callbackable {
         String mChunkFileName;
         File mChunkFile;
         int mCurrentSize;
+        long mLastModified;
 
         public Chunk(String inName) throws IOException {
+            this(inName, System.currentTimeMillis()/1000);
+        }
+        
+        public Chunk(String inName, long timeStamp) throws IOException {
             inName = inName.replaceAll("/", ".");
             System.out.println("inName = " + inName);
             mChunkFile = new File(inName);
             System.out.println("inName absolute dir: " + mChunkFile.getAbsolutePath());
             mChunkFileName = inName;
+            mLastModified = timeStamp;
             if (!mChunkFile.createNewFile()) {
                 //createNewFile returns false if file already exists
                 //not sure how to handle this yet
@@ -65,7 +71,7 @@ public class ChunkServer implements Callbackable {
                 //file did not exist and has been created
             }
         }
-
+         
         public boolean AppendTo(byte[] inData) {
             try {
                 Path filePath = Paths.get(mChunkFileName);
@@ -95,6 +101,8 @@ public class ChunkServer implements Callbackable {
                 out.close();
                 mCurrentSize += 4 + inData.length; //4 is for the int
                 System.out.println("Finished writing file");
+                // update time stamp
+                mLastModified = System.currentTimeMillis()/1000;
             } catch (IOException ioe) {
                 System.out.println("Unable to complete writing to file");
                 System.out.println(ioe.getMessage());
@@ -478,6 +486,10 @@ public class ChunkServer implements Callbackable {
          */
 
         public void MakeNewChunk(String chunkFilename) {
+            MakeNewChunk(chunkFilename, System.currentTimeMillis()/1000);
+        }
+        
+        public void MakeNewChunk(String chunkFilename, long timeStamp) {
             try {
                 if (chunkFilename.startsWith("/")) {
                     chunkFilename = chunkFilename.substring(1, chunkFilename.length());
@@ -485,7 +497,7 @@ public class ChunkServer implements Callbackable {
                 if (mChunks.get(chunkFilename) == null) {
                     chunkFilename = chunkFilename.replaceAll("/", ".");
                     System.out.println("Making new chunk: " + chunkFilename);
-                    mChunks.put(chunkFilename, new Chunk(chunkFilename));
+                    mChunks.put(chunkFilename, new Chunk(chunkFilename, timeStamp));
                 } else {
                     //System.out.println("Chunk already exists in mChunks wtf");
                     System.out.println("Chunk already exists");
@@ -513,7 +525,8 @@ public class ChunkServer implements Callbackable {
                 BufferedReader br = new BufferedReader(new FileReader(file));
                 String line;
                 while ((line = br.readLine()) != null) {
-                    MakeNewChunk(line);
+                    String chunkData[] = line.split(" ");
+                    MakeNewChunk(chunkData[0], Long.parseLong(chunkData[1]));
                 }
                 br.close();
 
@@ -539,7 +552,7 @@ public class ChunkServer implements Callbackable {
             try {
                 PrintWriter pw = new PrintWriter(new FileWriter("SYSTEM_LOG.txt", false));
                 for (Chunk c : mChunks.values()) {
-                    pw.write(c.mChunkFileName + "\r\n");
+                    pw.write(c.mChunkFileName + " " + c.mLastModified + "\r\n");
                 }
                 pw.close();
             } catch (IOException ie) {

@@ -351,6 +351,7 @@ public class ClientThread extends Thread {
             CreateNewFile(fileName, numReplicas, output);
             file = GetAtPath(fileName);
             if (file == null) { // create new file failed for some reason
+                output.WriteDebugStatement("Num replicas requested: " + numReplicas + " num chunkserver: " + mMaster.mChunkServers.size());
                 return;
             }
         }
