@@ -171,8 +171,6 @@ public class Client implements ClientInterface, Callbackable {
         }
         while (!mTestInput.isEmpty()) {
             Message toServer = new Message();
-
-            System.out.println(mTestInput.getFirst());
             String[] sentenceTokenized = mTestInput.pop().split(" ");
             if (ParseUserInput(sentenceTokenized, toServer)) {
                 toServer.SetSocket(serverSocket);
@@ -265,7 +263,7 @@ public class Client implements ClientInterface, Callbackable {
                     }
                 } catch (InterruptedException ie) {
                     System.out.println(ie.getMessage());
-                }finally {
+                } finally {
                     serverSocket.close();
                 }
             } catch (IOException ioe) {
@@ -630,12 +628,6 @@ public class Client implements ClientInterface, Callbackable {
                 //try {
                 mTempFileNode = new FileNode(false);
                 mTempFileNodeReady = true;
-
-                //mTempFileNode.ReadFromMessage(m);
-//                } catch (IOException ioe) {
-//                    System.out.println("Problem deserializing file node");
-//                    System.out.println(ioe.getMessage());
-//                }
                 break;
             }
             case "sm-getfilesunderpathresponse": {
@@ -650,7 +642,7 @@ public class Client implements ClientInterface, Callbackable {
                 TestPathResponse(m);
                 break;
             case "sm-logicalfilecountresponse":
-                LogicalFileCountResponse(m);
+                SMLogicalFileCountResponse(m);
                 break;
             default:
                 System.out.println("Client received unknown command: " + input + " from server");
@@ -718,10 +710,22 @@ public class Client implements ClientInterface, Callbackable {
         mPendingMessages.push(toPrimaryChunkServer);
     }
 
-    public void LogicalFileCountResponse(Message m) {
-        //numfiles filesize filedata...
-        int numFiles = m.ReadInt();
-        System.out.println("Number of files in haystack: " + numFiles);
+    public void SMLogicalFileCountResponse(Message m) throws IOException {
+        String fileName = m.ReadString();
+        String primaryChunkInfo = m.ReadString();
+        MySocket newChunkServerSocket = GetSocketForID(primaryChunkInfo);
+        if (newChunkServerSocket == null) {
+            System.out.println("Making new chunk server socket");
+            newChunkServerSocket = new MySocket(primaryChunkInfo);
+            InitConnectionWithChunkServer(newChunkServerSocket);
+            mChunkServerSockets.add(newChunkServerSocket);
+        }
+        System.out.println("Writing message to chunk server");
+        Message toPrimaryChunkServer = new Message();
+        toPrimaryChunkServer.WriteString("logicalfilecount");
+        toPrimaryChunkServer.WriteString(fileName);
+        toPrimaryChunkServer.SetSocket(newChunkServerSocket);
+        mPendingMessages.push(toPrimaryChunkServer);
     }
 
     public void TestPathResponse(Message m) {
@@ -796,6 +800,10 @@ public class Client implements ClientInterface, Callbackable {
             case "cs-readfileresponse":
                 CSReadFileResponse(m);
                 break;
+            case "cs-logicalfilecountresponse":
+                CSLogicalFileCountResponse(m);
+                break;
+                
         }
     }
 
@@ -812,6 +820,10 @@ public class Client implements ClientInterface, Callbackable {
         int dataSize = m.ReadInt();
         byte[] data = m.ReadData(dataSize);
         WriteLocalFile(localFilename, data);
+    }
+    
+    public void CSLogicalFileCountResponse(Message m) {
+        System.out.println("Number of files in haystack: " + m.ReadInt());
     }
 
     @Override
