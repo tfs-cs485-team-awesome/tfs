@@ -183,6 +183,20 @@ public class ServerMaster implements Callbackable {
         return curFile;
     }
 
+    public void RemoveLocationFromFiles(String ReplicaInfo) {
+        RecurseRemoveLocationFromFiles(mFileRoot, ReplicaInfo);
+    }
+
+    public void RecurseRemoveLocationFromFiles(FileNode curNode, String ReplicaInfo) {
+        if (curNode.mIsDirectory) {
+            for (FileNode fn : curNode.mChildren) {
+                RecurseRemoveLocationFromFiles(fn, ReplicaInfo);
+            }
+        } else {
+            curNode.GetChunkDataAtIndex(0).RemoveChunkLocation(ReplicaInfo);
+        }
+    }
+
     public void AssignChunkServerToFile(String fileName, int numReplicas) {
         //make a random chunk server the location of this new file
         FileNode node = GetAtPath(fileName);
@@ -255,6 +269,7 @@ public class ServerMaster implements Callbackable {
                             if (mClients.containsKey(socketID)) {
                                 mClients.get(socketID).Close();
                             } else if (mChunkServers.containsKey(socketID)) {
+                                RemoveLocationFromFiles(socketID);
                                 mChunkServers.get(socketID).close();
                                 mChunkServers.remove(socketID);
                             } else {

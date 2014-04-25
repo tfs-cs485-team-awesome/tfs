@@ -191,10 +191,10 @@ public class ClientThread extends Thread {
                 break;
             case "write": {
                 /*String name = m.ReadString();
-                int numReplicas = m.ReadInt();
-                int lengthToRead = m.ReadInt();
-                byte[] data = m.ReadData(lengthToRead);
-                WriteFile(name, numReplicas, data, outputToClient);*/
+                 int numReplicas = m.ReadInt();
+                 int lengthToRead = m.ReadInt();
+                 byte[] data = m.ReadData(lengthToRead);
+                 WriteFile(name, numReplicas, data, outputToClient);*/
                 AppendFile(m.ReadString(), m.ReadInt(), outputToClient);
                 break;
             }
@@ -316,6 +316,13 @@ public class ClientThread extends Thread {
                 return;
             }
         }
+        //make sure more chunk servers exist than the numReplicas requested
+        synchronized (mMaster.mChunkServers) {
+            if (mMaster.mChunkServers.size() - 1 < numReplicas) {
+                m.WriteDebugStatement("Not enough chunk servers");
+                return;
+            }
+        }
         // verify if the parent node is a directory
         if (!parentNode.mIsDirectory) {
             System.out.println("Parent is not a directory");
@@ -346,7 +353,7 @@ public class ClientThread extends Thread {
             m.WriteDebugStatement("Parent directory is locked, cancelling command");
         }
     }
-    
+
     public void AppendFile(String fileName, Message output) {
         AppendFile(fileName, 3, output);
     }
@@ -356,6 +363,9 @@ public class ClientThread extends Thread {
         if (file == null) {
             CreateNewFile(fileName, numReplicas, output);
             file = GetAtPath(fileName);
+            if (file == null) { // create new file failed for some reason
+                return;
+            }
         }
         if (file.RequestWriteLock()) {
             try {
@@ -412,7 +422,7 @@ public class ClientThread extends Thread {
     }
 
     public void ReadFile(String fileName, Message output) {
-        System.out.println("Sending back info for readfile");
+        System.out.println("Sending back info for readfile: " + fileName);
         FileNode fileNode = GetAtPath(fileName);
         if (fileNode == null) {
             System.out.println("File does not exist");
