@@ -26,6 +26,7 @@ for i in `seq 1 $1`; do
 	#tmux split-window -h 'java -jar TFS.jar client localhost:6789'
 	runInNewWindow "java -jar TFS.jar client localhost:6789"
 	cd ..
+	cp README.TXT client$i
 done   
 for i in `seq 1 $2`; do
 	cd chunk$i
