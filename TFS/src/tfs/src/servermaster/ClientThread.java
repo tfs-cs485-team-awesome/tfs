@@ -190,31 +190,33 @@ public class ClientThread extends Thread {
                 ReadFile(m.ReadString(), outputToClient);
                 break;
             case "write": {
-                String name = m.ReadString();
+                /*String name = m.ReadString();
+                int numReplicas = m.ReadInt();
                 int lengthToRead = m.ReadInt();
                 byte[] data = m.ReadData(lengthToRead);
-                WriteFile(name, data, outputToClient);
+                WriteFile(name, numReplicas, data, outputToClient);*/
+                AppendFile(m.ReadString(), m.ReadInt(), outputToClient);
                 break;
             }
             case "stream":
                 AppendFile(m.ReadString(), outputToClient);
                 break;
             /*case "getnode": {
-                String path = m.ReadString();
-                System.out.println("Getting node " + path);
-                outputToClient.WriteDebugStatement("Getting node " + path);
-                FileNode toClient = GetAtPath(path);
-                try {
-                    outputToClient.WriteString("GetNodeResponse");
-                    toClient.WriteToMessage(outputToClient);
-                } catch (IOException ioe) {
-                    System.out.println(ioe.getMessage());
-                    System.out.println("Problem serializing node");
-                }
-                break;
+             String path = m.ReadString();
+             System.out.println("Getting node " + path);
+             outputToClient.WriteDebugStatement("Getting node " + path);
+             FileNode toClient = GetAtPath(path);
+             try {
+             outputToClient.WriteString("GetNodeResponse");
+             toClient.WriteToMessage(outputToClient);
+             } catch (IOException ioe) {
+             System.out.println(ioe.getMessage());
+             System.out.println("Problem serializing node");
+             }
+             break;
                     
-            }
-                    */
+             }
+             */
             case "getfilesunderpath":
                 GetFilesUnderPath(m.ReadString(), outputToClient);
                 break;
@@ -250,7 +252,7 @@ public class ClientThread extends Thread {
         if (lastIndex > 1) {
             String parent = name.substring(0, lastIndex);
             parentNode = GetAtPath(parent);
-            if (parentNode == null) {
+            if (parentNode == null || !parentNode.mIsDirectory) {
                 System.out.println("Parent directory does not exist");
                 m.WriteDebugStatement("Parent directory does not exist");
                 return;
@@ -280,6 +282,10 @@ public class ClientThread extends Thread {
     }
 
     public void CreateNewFile(String name, Message m) {
+        CreateNewFile(name, 3, m);
+    }
+
+    public void CreateNewFile(String name, int numReplicas, Message m) {
         // check for the initial "/"
         int firstIndex = name.indexOf("/");
         if (firstIndex != 0) {
@@ -331,7 +337,7 @@ public class ClientThread extends Thread {
                 System.out.println("Finished creating new dir");
                 m.WriteDebugStatement("Finished creating new dir");
                 //make a random chunk server the location of this new file
-                mMaster.AssignChunkServerToFile(name);
+                mMaster.AssignChunkServerToFile(name, numReplicas);
             } finally {
                 parentNode.ReleaseWriteLock();
             }
@@ -340,11 +346,16 @@ public class ClientThread extends Thread {
             m.WriteDebugStatement("Parent directory is locked, cancelling command");
         }
     }
-
+    
     public void AppendFile(String fileName, Message output) {
+        AppendFile(fileName, 3, output);
+    }
+
+    public void AppendFile(String fileName, int numReplicas, Message output) {
         FileNode file = GetAtPath(fileName);
         if (file == null) {
-            CreateNewFile(fileName, output);
+            CreateNewFile(fileName, numReplicas, output);
+            file = GetAtPath(fileName);
         }
         if (file.RequestWriteLock()) {
             try {
@@ -373,7 +384,7 @@ public class ClientThread extends Thread {
         }
     }
 
-    public void WriteFile(String fileName, byte[] data, Message output) {
+    public void WriteFile(String fileName, int numReplicas, byte[] data, Message output) {
 
         FileNode file = GetAtPath(fileName);
         if (file != null) {
@@ -381,27 +392,16 @@ public class ClientThread extends Thread {
             output.WriteDebugStatement("File already exists: " + fileName);
             return;
         }
+        CreateNewFile(fileName, numReplicas, output);
+        file = GetAtPath(fileName);
         if (file.RequestWriteLock()) {
-            CreateNewFile(fileName, output);
-            file = GetAtPath(fileName);
-            Message toChunkServer = new Message();
-            MySocket chunkServerSocket = mMaster.GetChunkSocket(file.GetChunkLocationAtIndex(0));
-            toChunkServer.SetSocket(chunkServerSocket);
-            toChunkServer.WriteDebugStatement("Making primary");
-            toChunkServer.WriteString("sm-makeprimary");
-            mPendingMessages.push(toChunkServer);
             try {
-                fileName = fileName.replaceAll("/", ".");
-                Path filePath = Paths.get(fileName);
-                OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
-                out.write(data);
-                out.close();
-                System.out.println("Finished appending to file");
-                output.WriteDebugStatement("Finished appending to file");
-
-            } catch (IOException ioe) {
-                System.out.println(ioe.getMessage());
-                ioe.printStackTrace();
+                Message toChunkServer = new Message();
+                MySocket chunkServerSocket = mMaster.GetChunkSocket(file.GetChunkLocationAtIndex(0));
+                toChunkServer.SetSocket(chunkServerSocket);
+                toChunkServer.WriteDebugStatement("Making primary");
+                toChunkServer.WriteString("sm-makeprimary");
+                mPendingMessages.push(toChunkServer);
             } finally {
                 file.ReleaseWriteLock();
             }

@@ -21,11 +21,12 @@ import tfs.util.MySocket;
 import tfs.util.HeartbeatSocket;
 import tfs.util.ChunkQueryRequest;
 import tfs.util.Callbackable;
+
 /**
  *
  * @author laurencewong
  */
-public class Client implements ClientInterface, Callbackable{
+public class Client implements ClientInterface, Callbackable {
 
     Stack<String> mCurrentPath;
     String mID;
@@ -56,8 +57,8 @@ public class Client implements ClientInterface, Callbackable{
         }
 
         try {
-        mServerIp = InetAddress.getByName(parts[0]).toString();
-        mServerIp = mServerIp.substring(mServerIp.indexOf("/") + 1);
+            mServerIp = InetAddress.getByName(parts[0]).toString();
+            mServerIp = mServerIp.substring(mServerIp.indexOf("/") + 1);
         } catch (UnknownHostException uhe) {
             System.out.println("mServerip = " + mServerIp);
             System.out.println("Unable to get serverIP; defaulting to localhost");
@@ -178,15 +179,15 @@ public class Client implements ClientInterface, Callbackable{
                 return ms;
             }
         }
-        if(serverSocket.GetID().equalsIgnoreCase(serverInfo) || serverInfo.equalsIgnoreCase("servermaster")) {
+        if (serverSocket.GetID().equalsIgnoreCase(serverInfo) || serverInfo.equalsIgnoreCase("servermaster")) {
             return serverSocket;
         }
         return null;
     }
-    
+
     public void RemoveSocket(MySocket socket) {
-        if(!mChunkServerSockets.remove(socket)) {
-            if(serverSocket.GetID().equalsIgnoreCase(socket.GetID())) {
+        if (!mChunkServerSockets.remove(socket)) {
+            if (serverSocket.GetID().equalsIgnoreCase(socket.GetID())) {
                 //remove serverSocket
             }
         }
@@ -209,21 +210,21 @@ public class Client implements ClientInterface, Callbackable{
                         break;
                     }
                     try {
-                    SendMessage();
+                        SendMessage();
                     } catch (IOException e) {
                         System.out.println(e.getMessage());
                     }
                     ReceiveMessage();
-                    synchronized(mSocketsToClose) {
+                    synchronized (mSocketsToClose) {
                         while (!mSocketsToClose.isEmpty()) {
                             String socketID = mSocketsToClose.pop();
                             MySocket socketToClose = GetSocketForID(socketID);
-                            if(socketToClose == null) {
+                            if (socketToClose == null) {
                                 System.out.println("Cannot find socket: " + socketID);
                                 continue;
                             }
                             System.out.println("Closing socket " + socketID);
-                            if(socketToClose.GetID().equalsIgnoreCase(serverSocket.GetID())) {
+                            if (socketToClose.GetID().equalsIgnoreCase(serverSocket.GetID())) {
                                 break;
                             }
                             socketToClose.close();
@@ -450,7 +451,7 @@ public class Client implements ClientInterface, Callbackable{
     }
 
     public boolean ParseWriteToFile(String[] inString, Message toServer) {
-        //cmd localfile remotefile
+        //cmd localfile remotefile num_replicas
         if (inString.length != 4) {
             System.out.println("Invalid number of arguments");
             return false;
@@ -458,7 +459,7 @@ public class Client implements ClientInterface, Callbackable{
         toServer.WriteString(inString[0]);
 
         toServer.WriteString(inString[2]);
-        //toServer.WriteInt(Integer.valueOf(inString[3])); // number of replicas
+        toServer.WriteInt(Integer.valueOf(inString[3])); // number of replicas
 
         //it's a file
         //handle this sometime
@@ -467,6 +468,10 @@ public class Client implements ClientInterface, Callbackable{
             byte[] data = Files.readAllBytes(filePath);
             toServer.WriteInt(data.length);
             toServer.AppendData(data);
+
+            ChunkQueryRequest newQuery = new ChunkQueryRequest(inString[2], ChunkQueryRequest.QueryType.APPEND);
+            newQuery.PutData(data);
+            mPendingChunkQueries.push(newQuery);
 
         } catch (IOException ie) {
             System.out.println("Unable to read local file");
@@ -595,8 +600,8 @@ public class Client implements ClientInterface, Callbackable{
                 break;
             case "sm-getnoderesponse": {
                 //try {
-                    mTempFileNode = new FileNode(false);
-                    //mTempFileNode.ReadFromMessage(m);
+                mTempFileNode = new FileNode(false);
+                //mTempFileNode.ReadFromMessage(m);
 
 //                } catch (IOException ioe) {
 //                    System.out.println("Problem deserializing file node");
@@ -724,7 +729,7 @@ public class Client implements ClientInterface, Callbackable{
             InitConnectionWithChunkServer(newChunkServerSocket);
             mChunkServerSockets.add(newChunkServerSocket);
         }
-        System.out.println("Writing message to chunk server");  
+        System.out.println("Writing message to chunk server");
         Message toPrimaryChunkServer = new Message();
         toPrimaryChunkServer.WriteString("readfile");
         toPrimaryChunkServer.WriteString(GetRequestWithFilename(filename).GetName());
@@ -830,8 +835,8 @@ public class Client implements ClientInterface, Callbackable{
     }
 
     @Override
-    public void WriteFile(String localfilename, String remotefilename) throws IOException {
-        sentence = "write " + localfilename + " " + remotefilename;
+    public void WriteFile(String localfilename, String remotefilename, int numReplicas) throws IOException {
+        sentence = "write " + localfilename + " " + remotefilename + " " + numReplicas;
         if (SendMessage()) {
             while (!ReceiveMessage());
         }
@@ -875,7 +880,7 @@ public class Client implements ClientInterface, Callbackable{
 
     @Override
     public void Callback(String inParameter) {
-        synchronized(mSocketsToClose) {
+        synchronized (mSocketsToClose) {
             mSocketsToClose.push(inParameter);
         }
     }

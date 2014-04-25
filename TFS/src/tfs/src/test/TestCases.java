@@ -54,7 +54,7 @@ public class TestCases {
                         break;
                     case "test4":
                     case "unit4":
-                        tc.test4(params[1], params[2]);
+                        tc.test4(params[1], params[2], Integer.valueOf(params[3]));
                         break;
                     case "test5":
                     case "unit5":
@@ -148,9 +148,9 @@ public class TestCases {
         }
     }
     
-    public void test4(String localpath, String remotepath) {
+    public void test4(String localpath, String remotepath, int numReplicas) {
         try {
-            testClient.WriteFile(localpath, remotepath);
+            testClient.WriteFile(localpath, remotepath, numReplicas);
             
         } catch (IOException e) {
             System.out.println("Test 4 failed due to exception " + e.getMessage());

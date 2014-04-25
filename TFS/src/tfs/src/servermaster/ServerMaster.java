@@ -183,7 +183,7 @@ public class ServerMaster implements Callbackable {
         return curFile;
     }
 
-    public void AssignChunkServerToFile(String fileName) {
+    public void AssignChunkServerToFile(String fileName, int numReplicas) {
         //make a random chunk server the location of this new file
         FileNode node = GetAtPath(fileName);
         synchronized (mChunkServers) {
@@ -198,10 +198,10 @@ public class ServerMaster implements Callbackable {
                 newChunkMessage.SetSocket(chunkServerSocket);
                 System.out.println("Pushing sm-makenewfile to mPendingMessages");
                 mPendingMessages.push(newChunkMessage);
-                for (int i = 0; i < (mChunkServers.size() - 1 < NUM_REPLICAS ? mChunkServers.size() - 1 : NUM_REPLICAS); ++i) {
-                    MySocket newChunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
+                for (int i = 0; i < (mChunkServers.size() - 1 < numReplicas ? mChunkServers.size() - 1 : numReplicas); ++i) {
+                    MySocket newChunkServerSocket = mChunkServerList.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
                     while (node.DoesChunkExistAtLocation(0, newChunkServerSocket.GetID())) {
-                        newChunkServerSocket = mChunkServers.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
+                        newChunkServerSocket = mChunkServerList.get(newRandom.nextInt(Integer.MAX_VALUE) % mChunkServers.size());
                     }
                     System.out.println("Adding replica at server: " + newChunkServerSocket.GetID());
                     node.AddReplicaAtLocation(0, newChunkServerSocket.GetID());
@@ -230,6 +230,7 @@ public class ServerMaster implements Callbackable {
             System.out.println("Creating chunk serving thread");
         }
 
+        @Override
         public void run() {
             LoadFileStructure();
             while (true) {
@@ -246,7 +247,6 @@ public class ServerMaster implements Callbackable {
                         }
                     }
                     while (!mPendingMessages.isEmpty()) {
-                        System.out.println("Sending pending messages");
                         mPendingMessages.pop().Send();
                     }
                     synchronized (mSocketsToClose) {

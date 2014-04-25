@@ -21,7 +21,7 @@ public interface ClientInterface {
     public String[] GetListFile(String path) throws IOException;
     public void ReadFile(String remotefilename, String localfilename) throws IOException;
     public FileNode GetAtFilePath(String path) throws IOException;
-    public void WriteFile(String localfilename, String remotefilename) throws IOException;
+    public void WriteFile(String localfilename, String remotefilename, int numReplicas) throws IOException;
     public void AppendFile(String localfilename, String remotefilename) throws IOException;
     public void CountFiles(String remotename) throws IOException;
     public void WriteLocalFile(String fileName, byte[] data) throws IOException;
