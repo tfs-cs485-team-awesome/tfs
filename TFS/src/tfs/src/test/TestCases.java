@@ -78,8 +78,8 @@ public class TestCases {
                         break;
                 }
             }
-        } catch (Exception e) {
-            System.out.println("Unrecognized command.");
+        } catch (IOException ie) {
+            System.out.println(ie.getMessage());
         }
     }
 
