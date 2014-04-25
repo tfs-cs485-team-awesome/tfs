@@ -50,6 +50,7 @@ public class ChunkServer implements Callbackable {
         String mChunkFileName;
         File mChunkFile;
         int mCurrentSize;
+        double mLastModified;
 
         public Chunk(String inName) throws IOException {
             inName = inName.replaceAll("/", ".");
@@ -57,6 +58,7 @@ public class ChunkServer implements Callbackable {
             mChunkFile = new File(inName);
             System.out.println("inName absolute dir: " + mChunkFile.getAbsolutePath());
             mChunkFileName = inName;
+            mLastModified = System.currentTimeMillis()/1000;
             if (!mChunkFile.createNewFile()) {
                 //createNewFile returns false if file already exists
                 //not sure how to handle this yet
