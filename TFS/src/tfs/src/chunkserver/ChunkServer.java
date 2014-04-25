@@ -608,8 +608,9 @@ public class ChunkServer implements Callbackable {
                 case "readfile":
                     ReadFile(m, outputToClient);
                     break;
-                case "logicalcount":
+                case "logicalfilecount":
                     LogicalFileCount(m.ReadString(), outputToClient);
+                    break;
                 default:
                     System.out.println("Client gave chunk server wrong command");
                     break;
@@ -719,10 +720,14 @@ public class ChunkServer implements Callbackable {
                 System.out.println(s);
                 try {
                     synchronized (mMain.mChunkServers) {
+                        MySocket newChunkServerSocket;
                         if (!mMain.mChunkServers.containsKey(s)) {
-                            MySocket newChunkServerSocket = new MySocket(s);
+                            newChunkServerSocket = new MySocket(s);
                             InitConnectionWithChunkServer(newChunkServerSocket);
                             mChunkServers.put(s, newChunkServerSocket);
+                            mChunkService.AddServer(newChunkServerSocket);
+                        } else {
+                            newChunkServerSocket = mMain.mChunkServers.get(s);
                             mChunkService.AddServer(newChunkServerSocket);
                         }
                     }
@@ -764,6 +769,7 @@ public class ChunkServer implements Callbackable {
         public void LogicalFileCount(String fileName, Message output) {
             try {
                 fileName = fileName.replaceAll("/", ".");
+                System.out.println("counting file " + fileName);
                 Path filePath = Paths.get(fileName);
                 File f = new File(fileName);
                 if (f.exists()) {

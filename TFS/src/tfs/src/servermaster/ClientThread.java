@@ -204,6 +204,9 @@ public class ClientThread extends Thread {
             case "getfilesunderpath":
                 GetFilesUnderPath(m.ReadString(), outputToClient);
                 break;
+            case "logicalfilecount":
+                LogicalFileCount(m.ReadString(), outputToClient);
+                break;
 
         }
         System.out.println("Finished client input");
@@ -398,19 +401,32 @@ public class ClientThread extends Thread {
                     output.WriteString(s);
                 }
                 /*
-                Message toChunkServer = new Message();
-                MySocket chunkServerSocket = mMaster.GetChunkSocket(file.GetChunkLocationAtIndex(0));
-                toChunkServer.SetSocket(chunkServerSocket);
-                toChunkServer.WriteDebugStatement("Making primary");
-                toChunkServer.WriteString("sm-makeprimary");
-                mPendingMessages.push(toChunkServer);
-                        */
+                 Message toChunkServer = new Message();
+                 MySocket chunkServerSocket = mMaster.GetChunkSocket(file.GetChunkLocationAtIndex(0));
+                 toChunkServer.SetSocket(chunkServerSocket);
+                 toChunkServer.WriteDebugStatement("Making primary");
+                 toChunkServer.WriteString("sm-makeprimary");
+                 mPendingMessages.push(toChunkServer);
+                 */
             } finally {
                 file.ReleaseWriteLock();
             }
         } else {
             System.out.println("File is locked, cancelling write command");
             output.WriteDebugStatement("File is locked, cancelling write command");
+        }
+    }
+
+    public void LogicalFileCount(String fileName, Message output) {
+        FileNode fileNode = GetAtPath(fileName);
+        if (fileNode == null) {
+            System.out.println("File does not exist");
+            output.WriteDebugStatement("File does not exist");
+        } else {
+            FileNode.ChunkMetadata chunk = fileNode.GetChunkDataAtIndex(0);
+            output.WriteString("sm-logicalfilecountresponse");
+            output.WriteString(fileName);
+            output.WriteString(chunk.GetPrimaryLocation());
         }
     }
 
