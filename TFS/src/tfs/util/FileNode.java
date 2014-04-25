@@ -5,8 +5,9 @@
  */
 package tfs.util;
 
-import java.util.ArrayList;
 import java.io.*;
+import java.util.ArrayList;
+import java.util.concurrent.locks.ReadWriteLock;
 
 /**
  *
@@ -148,56 +149,73 @@ public class FileNode implements Serializable {
         mFileMetadata.mChunks.get(inIndex).mChunkReplicaLocations.add(inLocation);
     }
 
-    public void WriteToMessage(Message m) throws IOException {
-        m.WriteString(mName);
-        if (mIsDirectory) {
-            m.WriteInt(1);
-        } else {
-            m.WriteInt(0);
-        }
-        if (mReadLock) {
-            m.WriteInt(1);
-        } else {
-            m.WriteInt(0);
-        }
-        if (mWriteLock) {
-            m.WriteInt(1);
-        } else {
-            m.WriteInt(0);
-        }
+//    public void WriteToMessage(Message m) throws IOException {
+//        m.WriteString(mName);
+//        if (mIsDirectory) {
+//            m.WriteInt(1);
+//        } else {
+//            m.WriteInt(0);
+//        }
+//        if (mReadLock) {
+//            m.WriteInt(1);
+//        } else {
+//            m.WriteInt(0);
+//        }
+//        if (mWriteLock) {
+//            m.WriteInt(1);
+//        } else {
+//            m.WriteInt(0);
+//        }
+//
+//    }
 
-    }
-
-    public void ReadFromMessage(Message m) throws IOException {
-        mName = m.ReadString();
-        int bool = 0;
-        mIsDirectory = false;
-        mReadLock = false;
-        mWriteLock = false;
-
-        bool = m.ReadInt();
-        if (bool == 1) {
-            mIsDirectory = true;
-        }
-        bool = m.ReadInt();
-        if (bool == 1) {
-            mReadLock = true;
-        }
-        bool = m.ReadInt();
-        if (bool == 1) {
-            mWriteLock = true;
-        }
-    }
+//    public void ReadFromMessage(Message m) throws IOException {
+//        mName = m.ReadString();
+//        int bool = 0;
+//        mIsDirectory = false;
+//        mReadLock = false;
+//        mWriteLock = false;
+//
+//        bool = m.ReadInt();
+//        if (bool == 1) {
+//            mIsDirectory = true;
+//        }
+//        bool = m.ReadInt();
+//        if (bool == 1) {
+//            mReadLock = true;
+//        }
+//        bool = m.ReadInt();
+//        if (bool == 1) {
+//            mWriteLock = true;
+//        }
+//    }
 
     public String mName;
     public boolean mIsDirectory;
 
+    private ReadWriteLock mLock;
     //false = unlocked
     //true  = locked
-    public boolean mReadLock, mWriteLock;
+    //public boolean mReadLock, mWriteLock;
     public ArrayList<FileNode> mChildren;
 
     //only need to make this if this is actually a file
     public FileMetadata mFileMetadata;
+    
+    public Boolean RequestReadLock(){
+        return mLock.readLock().tryLock();
+    }
+    
+    public Boolean RequestWriteLock(){
+        return mLock.writeLock().tryLock();
+    }
+    
+    public void ReleaseReadLock(){
+        mLock.readLock().unlock();
+    }
+    
+    public void ReleaseWriteLock(){
+        mLock.writeLock().unlock();
+    }
 
 }
