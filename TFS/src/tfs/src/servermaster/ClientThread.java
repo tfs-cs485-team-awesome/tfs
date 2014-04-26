@@ -391,6 +391,11 @@ public class ClientThread extends Thread {
         }
         CreateNewFile(fileName, numReplicas, output);
         file = GetAtPath(fileName);
+        if(file == null) {
+            //was not able to create file
+            output.WriteDebugStatement("Too many replicas requested");
+            return;
+        }
         if (file.RequestWriteLock()) {
             try {
                 FileNode.ChunkMetadata chunk = file.GetChunkDataAtIndex(0);
@@ -474,7 +479,7 @@ public class ClientThread extends Thread {
             try {
                 for (FileNode file : fileDir.mChildren) {
                     System.out.println(file.mName);
-                    m.WriteDebugStatement(file.mName);
+                    m.WriteDebugStatement(file.mName + "\t\t" + file.GetChunkDataAtIndex(0).GetTimestamp());
                 }
             } finally {
                 fileDir.ReleaseReadLock();

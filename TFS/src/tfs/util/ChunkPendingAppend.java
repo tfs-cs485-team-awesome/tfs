@@ -50,6 +50,7 @@ public class ChunkPendingAppend {
     ArrayList<ServerStatus> mStatuses;
     String mFilename;
     Message mAppendMessage;
+    long mTimestamp;
     
     public ChunkPendingAppend(MySocket[] inServerIDs, String inFilename) {
         mFilename = inFilename;
@@ -84,6 +85,10 @@ public class ChunkPendingAppend {
                 break;
             }
         }
+    }
+    
+    public void UpdateTimeStamp(long inTimestamp) {
+        mTimestamp = inTimestamp > mTimestamp ? inTimestamp : mTimestamp;
     }
     
     public boolean AllServersReplied() {

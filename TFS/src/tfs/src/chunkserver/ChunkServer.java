@@ -54,9 +54,9 @@ public class ChunkServer implements Callbackable {
         long mLastModified;
 
         public Chunk(String inName) throws IOException {
-            this(inName, System.currentTimeMillis()/1000);
+            this(inName, System.currentTimeMillis() / 1000);
         }
-        
+
         public Chunk(String inName, long timeStamp) throws IOException {
             inName = inName.replaceAll("/", ".");
             System.out.println("inName = " + inName);
@@ -71,7 +71,7 @@ public class ChunkServer implements Callbackable {
                 //file did not exist and has been created
             }
         }
-         
+
         public boolean AppendTo(byte[] inData) {
             try {
                 Path filePath = Paths.get(mChunkFileName);
@@ -102,7 +102,7 @@ public class ChunkServer implements Callbackable {
                 mCurrentSize += 4 + inData.length; //4 is for the int
                 System.out.println("Finished writing file");
                 // update time stamp
-                mLastModified = System.currentTimeMillis()/1000;
+                mLastModified = System.currentTimeMillis() / 1000;
             } catch (IOException ioe) {
                 System.out.println("Unable to complete writing to file");
                 System.out.println(ioe.getMessage());
@@ -120,6 +120,7 @@ public class ChunkServer implements Callbackable {
                 } else {
                     System.out.println("Failed to read given length from offset");
                 }
+                br.close();
             } catch (IOException ie) {
                 System.out.println("Problem reading file");
                 System.out.println(ie.getMessage());
@@ -127,19 +128,18 @@ public class ChunkServer implements Callbackable {
             }
             return true;
         }
-        
-        public boolean ReadAllBytes(byte[] outData) {
+
+        public byte[] ReadAllBytes() {
             try {
                 Path filePath = Paths.get(mChunkFileName);
-                outData = Files.readAllBytes(filePath);
-                return true;
+                return Files.readAllBytes(filePath);
             } catch (IOException ioe) {
                 System.out.println("Problem reading from file");
                 System.out.println(ioe.getMessage());
             }
-            return false;
+            return null;
         }
-        
+
         public boolean Overwrite(byte[] inData) {
             try {
                 Path filePath = Paths.get(mChunkFileName);
@@ -418,7 +418,7 @@ public class ChunkServer implements Callbackable {
             }
         }
 
-        public Message ParseServerInput(Message m) {
+        public Message ParseServerInput(Message m) throws IOException {
             Message outputToServer = new Message();
             String input = m.ReadString();
             System.out.println("Parsing server input " + input);
@@ -438,8 +438,35 @@ public class ChunkServer implements Callbackable {
                 case "sm-deletefile":
                     DeleteFile(m.ReadString());
                     SaveFileStructure();
+                    break;
+                case "sm-outofdatechunk":
+                    UpdateChunk(m.ReadString(), m.ReadString());
+                    break;
             }
             return outputToServer;
+        }
+
+        public void UpdateChunk(String filename, String primaryChunkInfo) throws IOException {
+            if (!mChunks.containsKey(filename)) {
+                System.out.println("Trying to update chunk that does not exist on this server: " + filename);
+                return;
+            }
+            MySocket newChunkServerSocket;
+
+            synchronized (mMain.mChunkServers) {
+                if (!mMain.mChunkServers.containsKey(primaryChunkInfo)) {
+                    newChunkServerSocket = new MySocket(primaryChunkInfo);
+                    InitConnectionWithChunkServer(newChunkServerSocket);
+                    mChunkServers.put(primaryChunkInfo, newChunkServerSocket);
+                } else {
+                    newChunkServerSocket = mMain.mChunkServers.get(primaryChunkInfo);
+                }
+            }
+            Message outputToChunk = new Message();
+            outputToChunk.WriteString("cs-updatefile");
+            outputToChunk.WriteString(filename);
+            outputToChunk.SetSocket(newChunkServerSocket);
+            mPendingMessages.push(outputToChunk);
         }
         /*
          public void UnBecomePrimary(String chunkFilename) {
@@ -486,9 +513,9 @@ public class ChunkServer implements Callbackable {
          */
 
         public void MakeNewChunk(String chunkFilename) {
-            MakeNewChunk(chunkFilename, System.currentTimeMillis()/1000);
+            MakeNewChunk(chunkFilename, System.currentTimeMillis() / 1000);
         }
-        
+
         public void MakeNewChunk(String chunkFilename, long timeStamp) {
             try {
                 if (chunkFilename.startsWith("/")) {
@@ -539,6 +566,7 @@ public class ChunkServer implements Callbackable {
                 for (Chunk c : mChunks.values()) {
                     String modifiedChunkFilename = c.mChunkFileName.replaceAll("\\.", "/");
                     chunksToServer.WriteString(modifiedChunkFilename);
+                    chunksToServer.WriteLong(c.mLastModified);
                 }
                 chunksToServer.SetSocket(mServerSocket);
                 mPendingMessages.push(chunksToServer);
@@ -563,7 +591,7 @@ public class ChunkServer implements Callbackable {
         public Message ParseChunkInput(Message m) {
             Message outputToChunk = new Message();
             String input = m.ReadString();
-            System.out.println("Parsing chunk input");
+            System.out.println("Parsing chunk input " + input);
             switch (input.toLowerCase()) {
                 case "seekfile":
                 case "seek":
@@ -586,6 +614,7 @@ public class ChunkServer implements Callbackable {
                     break;
                 case "cs-updatefileresponse":
                     EvaluateCSUpdateFileResponse(m);
+                    SaveFileStructure();
                     break;
                 default:
                     System.out.println("chunk gave chunk server wrong command");
@@ -594,15 +623,17 @@ public class ChunkServer implements Callbackable {
             System.out.println("Finished chunk input");
             return outputToChunk;
         }
-        
+
         public void EvaluateCSUpdateFileResponse(Message m) {
             String fileName = m.ReadString();
+            long lastModified = m.ReadLong();
             byte[] fileData = m.ReadData(m.ReadInt());
-            if(!mChunks.containsKey(fileName)) {
+            if (!mChunks.containsKey(fileName)) {
                 System.out.println("Received update to chunk I don't have");
                 return;
             }
             mChunks.get(fileName).Overwrite(fileData);
+            mChunks.get(fileName).mLastModified = lastModified;
         }
 
         public void EvaluateCSUpdateFile(Message m, Message output) {
@@ -610,16 +641,18 @@ public class ChunkServer implements Callbackable {
             //filename
             String fileName = m.ReadString();
             System.out.println("someone needs to update file: " + fileName);
-            if(!mChunks.containsKey(fileName)) {
+            if (!mChunks.containsKey(fileName)) {
                 output.WriteDebugStatement("Server: " + mID + " does not have this chunk");
                 return;
             }
             Chunk requestedChunk = mChunks.get(fileName);
-            byte[] fileData = new byte[0];
-            if(requestedChunk.ReadAllBytes(fileData)) {
+            byte[] fileData = requestedChunk.ReadAllBytes();
+            if (fileData != null) {
                 output.WriteString("cs-updatefileresponse");
                 output.WriteString(fileName);
+                output.WriteLong(requestedChunk.mLastModified);
                 output.WriteInt(fileData.length);
+                System.out.println(fileData.length);
                 output.AppendData(fileData);
             } else {
                 output.WriteDebugStatement("Unable to read file: " + fileName);
@@ -637,6 +670,7 @@ public class ChunkServer implements Callbackable {
             output.WriteString(filename);
             output.WriteString(mID);
             output.WriteInt(AppendToFile(filename, data) ? 1 : 0);
+            output.WriteLong(mChunks.get(filename).mLastModified);
         }
 
         public void EvaluateCSAppendFileResponse(Message m) {
@@ -644,8 +678,10 @@ public class ChunkServer implements Callbackable {
             String filename = m.ReadString();
             String serverInfo = m.ReadString();
             int success = m.ReadInt();
+            long timestamp = m.ReadLong();
             ChunkPendingAppend chunkService = mChunkServices.get(filename);
             chunkService.UpdateServerStatus(serverInfo, (success == 1), filename);
+            chunkService.UpdateTimeStamp(timestamp);
             if (chunkService.AllServersReplied()) {
                 System.out.println("Chunk server finished append");
                 if (chunkService.WasSuccessful() == false) {
@@ -654,6 +690,13 @@ public class ChunkServer implements Callbackable {
                 } else {
                     System.out.println("All servers were successful");
                     //send success to client
+                    //send servermaster the timestamp for the chunk
+                    Message toServerMaster = new Message();
+                    toServerMaster.WriteString("appendtimestamp");
+                    toServerMaster.WriteString(filename);
+                    toServerMaster.WriteLong(timestamp);
+                    toServerMaster.SetSocket(mServerSocket);
+                    mPendingMessages.push(toServerMaster);
                     mChunkServices.remove(filename);
                 }
             }
@@ -779,45 +822,56 @@ public class ChunkServer implements Callbackable {
 
             //try to find a chunkservicerequest with this filename.  server should have
             //already sent a request to this server since this is the primary
-            ChunkPendingAppend mChunkService = mChunkServices.get(filename);
-            if (mChunkService == null) {
-                //I should be the primary, but I don't have the service request yet
-                //make a new one and assume that the server will tell me i'm primary later
-                System.out.println("Making a a new chunkservicerequest.");
-                mChunkService = new ChunkPendingAppend(filename);
-                mChunkServices.put(filename, mChunkService);
-            } else {
-                System.out.println("Using old chunkpendingappend.  shouldn't happen.  might happen with multiple clients");
-            }
-            for (String s : replicaInfo) {
-                System.out.println(s);
-                try {
-                    synchronized (mMain.mChunkServers) {
-                        MySocket newChunkServerSocket;
-                        if (!mMain.mChunkServers.containsKey(s)) {
-                            newChunkServerSocket = new MySocket(s);
-                            InitConnectionWithChunkServer(newChunkServerSocket);
-                            mChunkServers.put(s, newChunkServerSocket);
-                            mChunkService.AddServer(newChunkServerSocket);
-                        } else {
-                            newChunkServerSocket = mMain.mChunkServers.get(s);
-                            mChunkService.AddServer(newChunkServerSocket);
-                        }
-                    }
-                } catch (IOException ioe) {
-                    System.out.println(ioe.getMessage());
-
+            if (replicaInfo.length > 0) {
+                ChunkPendingAppend mChunkService = mChunkServices.get(filename);
+                if (mChunkService == null) {
+                    //I should be the primary, but I don't have the service request yet
+                    //make a new one and assume that the server will tell me i'm primary later
+                    System.out.println("Making a a new chunkservicerequest.");
+                    mChunkService = new ChunkPendingAppend(filename);
+                    mChunkServices.put(filename, mChunkService);
+                } else {
+                    System.out.println("Using old chunkpendingappend.  shouldn't happen.  might happen with multiple clients");
                 }
-            }
-            AppendToFile(filename, inData);
-            mChunkService.GetMessage().WriteString("cs-appendreplica");
-            mChunkService.GetMessage().WriteString(filename);
-            mChunkService.GetMessage().WriteInt(inData.length);
-            mChunkService.GetMessage().AppendData(inData);
-            try {
-                mChunkService.SendRequest();
-            } catch (IOException ioe) {
-                System.out.println("Had problem writing data to socket");
+                for (String s : replicaInfo) {
+                    System.out.println(s);
+                    try {
+                        synchronized (mMain.mChunkServers) {
+                            MySocket newChunkServerSocket;
+                            if (!mMain.mChunkServers.containsKey(s)) {
+                                newChunkServerSocket = new MySocket(s);
+                                InitConnectionWithChunkServer(newChunkServerSocket);
+                                mChunkServers.put(s, newChunkServerSocket);
+                                mChunkService.AddServer(newChunkServerSocket);
+                            } else {
+                                newChunkServerSocket = mMain.mChunkServers.get(s);
+                                mChunkService.AddServer(newChunkServerSocket);
+                            }
+                        }
+                    } catch (IOException ioe) {
+                        System.out.println(ioe.getMessage());
+
+                    }
+                }
+                AppendToFile(filename, inData);
+                mChunkService.UpdateTimeStamp(mChunks.get(filename).mLastModified);
+                mChunkService.GetMessage().WriteString("cs-appendreplica");
+                mChunkService.GetMessage().WriteString(filename);
+                mChunkService.GetMessage().WriteInt(inData.length);
+                mChunkService.GetMessage().AppendData(inData);
+                try {
+                    mChunkService.SendRequest();
+                } catch (IOException ioe) {
+                    System.out.println("Had problem writing data to socket");
+                }
+            } else {
+                AppendToFile(filename, inData);
+                Message toServerMaster = new Message();
+                toServerMaster.WriteString("appendtimestamp");
+                toServerMaster.WriteString(filename);
+                toServerMaster.WriteLong(mChunks.get(filename).mLastModified);
+                toServerMaster.SetSocket(mServerSocket);
+                mPendingMessages.push(toServerMaster);
             }
         }
 

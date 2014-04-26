@@ -21,12 +21,6 @@ for i in `seq 1 $2`; do
 done
 #tmux new-session -d -s foo 'java -jar TFS.jar server 6789'
 runInNewWindow "java -jar TFS.jar server 6789"
-for i in `seq 1 $1`; do
-	cd client$i
-	#tmux split-window -h 'java -jar TFS.jar client localhost:6789'
-	runInNewWindow "java -jar TFS.jar client localhost:6789"
-	cd ..
-done   
 for i in `seq 1 $2`; do
 	cd chunk$i
 	portnum=`expr $i + 6800`
@@ -35,4 +29,11 @@ for i in `seq 1 $2`; do
 	runInNewWindow "java -jar TFS.jar chunk localhost:6789 "$portnum""
 	cd ..
 done
+for i in `seq 1 $1`; do
+	cd client$i
+	#tmux split-window -h 'java -jar TFS.jar client localhost:6789'
+	runInNewWindow "java -jar TFS.jar client localhost:6789"
+	cd ..
+	cp README.TXT client$i
+done   
 #tmux attach-session -d

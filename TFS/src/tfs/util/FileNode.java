@@ -30,6 +30,7 @@ public class FileNode{
 
         ArrayList<String> mChunkReplicaLocations;
         String mChunkLocation;
+        long mTimestamp = 0;
 
         public ChunkMetadata(String inLocation) {
             mChunkReplicaLocations = new ArrayList<>();
@@ -42,6 +43,17 @@ public class FileNode{
 
         public ArrayList<String> GetReplicaLocations() {
             return mChunkReplicaLocations;
+        }
+        
+        public void UpdateTimestamp(long inTimestamp) {
+            if(mTimestamp > inTimestamp) {
+                System.out.println("Trying to update chunk with older timestamp");
+            }
+            mTimestamp = inTimestamp;
+        }
+        
+        public long GetTimestamp() {
+            return mTimestamp;
         }
 
         public void RemoveChunkLocation(String inLocation) {

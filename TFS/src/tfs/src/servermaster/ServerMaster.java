@@ -409,16 +409,19 @@ public class ServerMaster implements Callbackable {
         }
 
         public Message ParseChunkInput(Message m) {
-            Message outputToClient = new Message();
+            Message outputToChunk = new Message();
 
             String command = m.ReadString();
             System.out.println("Server receivd: " + command);
             switch (command.toLowerCase()) {
                 case "chunksihave":
-                    UpdateChunkLocations(m, outputToClient);
+                    UpdateChunkLocations(m, outputToChunk);
+                    break;
+                case "appendtimestamp":
+                    UpdateChunkTimestamp(m, outputToChunk);
                     break;
             }
-            return outputToClient;
+            return outputToChunk;
         }
 
         public void UpdateChunkLocations(Message m, Message output) {
@@ -426,6 +429,7 @@ public class ServerMaster implements Callbackable {
             int numChunks = m.ReadInt();
             for (int i = 0; i < numChunks; ++i) {
                 String readPath = m.ReadString();
+                long lastUpdated = m.ReadLong();
                 FileNode fn = GetAtPath(readPath);
                 if (fn == null) {
                     output.WriteDebugStatement("File " + readPath + " does not exist on the server");
@@ -435,10 +439,34 @@ public class ServerMaster implements Callbackable {
                     if (fn.GetChunkDataAtIndex(0) == null) {
                         System.out.println(inChunkServerLocation);
                         fn.AddChunkAtLocation(inChunkServerLocation);
+                        fn.GetChunkDataAtIndex(0).UpdateTimestamp(lastUpdated);
                     } else {
                         fn.GetChunkDataAtIndex(0).SetChunkLocation(inChunkServerLocation);
+                        if (fn.GetChunkDataAtIndex(0).GetTimestamp() > lastUpdated) {
+                            output.WriteString("sm-outofdatechunk");
+                            output.WriteString(readPath.replaceAll("/", "\\."));
+                            output.WriteString(fn.GetChunkDataAtIndex(0).GetPrimaryLocation());
+                        }
                     }
                 }
+            }
+        }
+
+        public void UpdateChunkTimestamp(Message m, Message output) {
+            String filename = m.ReadString();
+            long timestamp = m.ReadLong();
+            filename = filename.replaceAll("\\.", "/");
+            FileNode fileNode = GetAtPath(filename);
+            if (fileNode == null) {
+                System.out.println("Tried to update file: " + filename + " timestamp, but file does not exist");
+                return;
+            }
+            if (fileNode.GetChunkDataAtIndex(0).GetTimestamp() > timestamp) {
+                output.WriteString("sm-outofdatechunk");
+                output.WriteString(filename.replaceAll("/", "\\."));
+                output.WriteString(fileNode.GetChunkDataAtIndex(0).GetPrimaryLocation());
+            } else {
+                fileNode.GetChunkDataAtIndex(0).UpdateTimestamp(timestamp);
             }
         }
     }

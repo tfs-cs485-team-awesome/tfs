@@ -134,6 +134,15 @@ public class Message implements Serializable {
         AppendData(ByteBuffer.allocate(4).putInt(i).array());
     }
     
+    public void WriteLong(long i) {
+        AppendData(ByteBuffer.allocate(8).putLong(i).array());
+    }
+    
+    public long ReadLong() {
+        byte[] longData = ReadData(8);
+        return ByteBuffer.wrap(longData).getLong();
+    }
+    
     public int ReadInt() {
         byte[] intData = ReadData(4);
         return ByteBuffer.wrap(intData).getInt();
