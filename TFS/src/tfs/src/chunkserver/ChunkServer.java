@@ -184,6 +184,7 @@ public class ChunkServer implements Callbackable {
             System.out.println("Telling server that I am a chunkserver");
             Message toServer = new Message();
             toServer.WriteString("ChunkServer");
+	    toServer.WriteString(GetIP());
             toServer.WriteInt(mListenSocket.getLocalPort());
             inSocket.WriteMessage(toServer);
             //wait for response back with ID

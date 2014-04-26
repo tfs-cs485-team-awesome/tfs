@@ -107,8 +107,9 @@ public class ServerMaster implements Callbackable {
                             System.out.println("Accepting chunk server" + newConnection.GetSocket().getLocalAddress() + ((InetSocketAddress) newConnection.GetSocket().getLocalSocketAddress()).getPort());
                             Message sendID = new Message();
                             sendID.WriteString("setid");
+			    String ChunkServerIP = m.ReadString();
                             int ChunkServerListenPort = m.ReadInt();
-                            newConnection.SetID(newConnection.GetID().split(":")[0] + ":" + ChunkServerListenPort);
+                            newConnection.SetID(ChunkServerIP + ":" + ChunkServerListenPort);
                             sendID.WriteString(newConnection.GetID());
                             System.out.println("Adding new chunkserver with ID : " + newConnection.GetID());
                             newConnection.WriteMessage(sendID);
