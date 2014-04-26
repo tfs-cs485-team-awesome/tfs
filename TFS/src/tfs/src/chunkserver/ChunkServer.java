@@ -95,6 +95,9 @@ public class ChunkServer implements Callbackable {
                         skippedBytes += bytesToSkip;
                         in.mark(skippedBytes);//mark the position before the next int
                     }
+                    if(errorspot > 0) {
+                        System.out.println("Errorspot: " + errorspot);
+                    }
                     in.close();
                     System.out.println("Skipped: " + skippedBytes + "bytes");
                 } else {
@@ -103,13 +106,6 @@ public class ChunkServer implements Callbackable {
                 OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
                 out.write(ByteBuffer.allocate(4).putInt(inData.length).array());
                 out.write(inData);
-                if (errorspot > 0) {
-                    String errormsg = "error";
-                    byte[] errormsgbytes = errormsg.getBytes();
-                    System.out.println("Got error spot at " + errorspot);
-                    System.out.println(mCurrentSize + inData.length + 4);
-                    out.write(errormsg.getBytes(), errorspot, errormsg.getBytes().length);
-                }
                 out.close();
                 mCurrentSize += 4 + inData.length; //4 is for the int
                 System.out.println("Finished writing file");

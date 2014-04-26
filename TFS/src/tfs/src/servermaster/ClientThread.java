@@ -475,7 +475,7 @@ public class ClientThread extends Thread {
             try {
                 for (FileNode file : fileDir.mChildren) {
                     System.out.println(file.mName);
-                    m.WriteDebugStatement(file.mName + "\t\t" + file.GetChunkDataAtIndex(0).GetTimestamp());
+                    m.WriteDebugStatement(file.mName);
                 }
             } finally {
                 fileDir.ReleaseReadLock();
