@@ -807,6 +807,7 @@ public class Client implements ClientInterface, Callbackable {
     public void CSReadFileResponse(Message m) throws IOException {
         System.out.println("Got csreadfileresponse");
         String filename = m.ReadString();
+        filename = filename.replaceAll("\\.", "/");
         ChunkQueryRequest chunkQuery = GetRequestWithFilename(filename);
         if (chunkQuery == null) {
             System.out.println("Query from chunk server did not match any on this client");
