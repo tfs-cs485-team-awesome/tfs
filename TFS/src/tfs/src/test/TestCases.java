@@ -22,13 +22,16 @@ import java.util.*;
  */
 public class TestCases {
 
-    static Client testClient;
+    public Client testClient;
+    public String ipAndPort;
 
     public static void main(String[] args) {
-        testClient = new Client(args[0]);
+        TestCases tc = new TestCases();
+
+        tc.testClient = new Client(args[0]);
+        tc.ipAndPort = args[0];
         try {
-            testClient.ConnectToServer();
-            TestCases tc = new TestCases();
+            tc.testClient.ConnectToServer();
 
             System.out.println("Type a test with valid parameters and press enter: ");
             BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
@@ -36,7 +39,8 @@ public class TestCases {
             while (true) {
                 input = br.readLine();
                 String[] params = input.split(" ");
-                switch (params[0].toLowerCase()) {
+                tc.EvaluateInput(params);
+                /*switch (params[0].toLowerCase()) {
                     case "test1":
                     case "unit1":
                         int param = Integer.parseInt(params[1]);
@@ -73,16 +77,73 @@ public class TestCases {
                         param = Integer.parseInt(params[1]);
                         tc.test8(args[0], params[2], params[3], param);
                         break;
+                    case "bunchofclients":
+                        param = Integer.parseInt(params[1]);
+                        break;
                     default:
                         System.out.println("Invalid test case, please re-enter");
                         break;
                 }
+                */
                 while (!br.ready()) {
-                    testClient.RunLoop();
+                    tc.testClient.RunLoop();
                 }
             }
         } catch (IOException ie) {
             System.out.println(ie.getMessage());
+        } catch (InterruptedException ie) {
+            System.out.println(ie.getMessage());
+        }
+    }
+
+    public void EvaluateInput(String[] params) {
+        try {
+            switch (params[0].toLowerCase()) {
+                case "test1":
+                case "unit1":
+                    int param = Integer.parseInt(params[1]);
+                    int param2 = Integer.parseInt(params[2]);
+                    test1(param, param2);
+                    break;
+                case "test2":
+                case "unit2":
+                    param = Integer.parseInt(params[2]);
+                    test2(params[1], param);
+                    break;
+                case "test3":
+                case "unit3":
+                    test3(params[1]);
+                    break;
+                case "test4":
+                case "unit4":
+                    test4(params[1], params[2], Integer.valueOf(params[3]));
+                    break;
+                case "test5":
+                case "unit5":
+                    test5(params[1], params[2]);
+                    break;
+                case "test6":
+                case "unit6":
+                    test6(params[1], params[2]);
+                    break;
+                case "test7":
+                case "unit7":
+                    test7(params[1]);
+                    break;
+                case "test8":
+                case "unit8":
+                    param = Integer.parseInt(params[1]);
+                    test8(ipAndPort, params[2], params[3], param);
+                    break;
+                case "bunchofclients":
+                    param = Integer.parseInt(params[1]);
+                    String[] newParams = new String[params.length - 2];
+                    System.arraycopy(params, 2, newParams, 0, params.length - 2);
+                    break;
+                default:
+                    System.out.println("Invalid test case, please re-enter");
+                    break;
+            }
         } catch (InterruptedException ie) {
             System.out.println(ie.getMessage());
         }
@@ -210,6 +271,7 @@ public class TestCases {
             }, 1000);
             try {
                 c.ConnectToServer();
+
                 c.AppendFile(inlocal, inpath);
                 this.start();
             } catch (IOException ioe) {
@@ -225,6 +287,7 @@ public class TestCases {
         public void run() {
             try {
                 while (isRunning) {
+
                     c.RunLoop();
                 }
                 System.out.println("Exiting client");

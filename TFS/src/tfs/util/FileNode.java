@@ -13,7 +13,7 @@ import java.util.concurrent.locks.*;
  *
  * @author laurencewong
  */
-public class FileNode{
+public class FileNode {
 
     public FileNode(boolean isFile) {
         mIsDirectory = !isFile;
@@ -23,7 +23,6 @@ public class FileNode{
         if (isFile) {
             mFileMetadata = new FileMetadata();
         }
-        mLock = new ReentrantReadWriteLock();
     }
 
     public class ChunkMetadata {
@@ -44,14 +43,14 @@ public class FileNode{
         public ArrayList<String> GetReplicaLocations() {
             return mChunkReplicaLocations;
         }
-        
+
         public void UpdateTimestamp(long inTimestamp) {
-            if(mTimestamp > inTimestamp) {
+            if (mTimestamp > inTimestamp) {
                 System.out.println("Trying to update chunk with older timestamp");
             }
             mTimestamp = inTimestamp;
         }
-        
+
         public long GetTimestamp() {
             return mTimestamp;
         }
@@ -83,9 +82,9 @@ public class FileNode{
                 mChunkReplicaLocations.remove(foundLocation);
             }
         }
-        
+
         public void SetChunkLocation(String inLocation) {
-            if(mChunkLocation != null) {
+            if (mChunkLocation != null) {
                 //it has a primary location
                 AddReplicaLocation(inLocation);
                 return;
@@ -93,7 +92,7 @@ public class FileNode{
             System.out.println("Setting chunk's main location");
             mChunkLocation = inLocation;
         }
-        
+
         public void AddReplicaLocation(String inLocation) {
             for (String s : mChunkReplicaLocations) {
                 if (s.equalsIgnoreCase(inLocation)) {
@@ -180,7 +179,6 @@ public class FileNode{
 //        }
 //
 //    }
-
 //    public void ReadFromMessage(Message m) throws IOException {
 //        mName = m.ReadString();
 //        int bool = 0;
@@ -201,11 +199,10 @@ public class FileNode{
 //            mWriteLock = true;
 //        }
 //    }
-
     public String mName;
     public boolean mIsDirectory;
 
-    private ReadWriteLock mLock;
+    private final ReentrantReadWriteLock mLock = new ReentrantReadWriteLock();
     //false = unlocked
     //true  = locked
     //public boolean mReadLock, mWriteLock;
@@ -213,20 +210,20 @@ public class FileNode{
 
     //only need to make this if this is actually a file
     public FileMetadata mFileMetadata;
-    
-    public Boolean RequestReadLock(){
+
+    public Boolean RequestReadLock() {
         return mLock.readLock().tryLock();
     }
-    
-    public Boolean RequestWriteLock(){
+
+    public Boolean RequestWriteLock() {
         return mLock.writeLock().tryLock();
     }
-    
-    public void ReleaseReadLock(){
+
+    public void ReleaseReadLock() {
         mLock.readLock().unlock();
     }
-    
-    public void ReleaseWriteLock(){
+
+    public void ReleaseWriteLock() {
         mLock.writeLock().unlock();
     }
 

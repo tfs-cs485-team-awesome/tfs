@@ -23,7 +23,7 @@ import tfs.util.MySocket;
  * @author laurencewong
  */
 public class ServerMaster implements Callbackable {
-
+    
     FileNode mFileRoot;
     ServerSocket mListenSocket;
     HeartbeatSocket mHeartbeatSocket;
@@ -131,7 +131,7 @@ public class ServerMaster implements Callbackable {
                 "Exiting server");
     }
 
-    public void SaveFileStructure(Boolean isDirectory, String name) {
+    public synchronized void SaveFileStructure(Boolean isDirectory, String name) {
         System.out.println("Saving file structure");
         FileNode file = GetAtPath(name);
         if (file != null) {
