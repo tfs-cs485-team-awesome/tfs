@@ -187,7 +187,7 @@ public class TestCases {
         try {
             testClient.CountFiles(pathname);
         } catch (IOException e) {
-            System.out.println("Test 6 failed due to exception " + e.getMessage());
+            System.out.println("Test 7 failed due to exception " + e.getMessage());
             e.printStackTrace();
         }
     }

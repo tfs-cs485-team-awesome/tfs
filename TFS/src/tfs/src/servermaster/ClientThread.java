@@ -424,7 +424,10 @@ public class ClientThread extends Thread {
         if (fileNode == null) {
             System.out.println("File does not exist");
             output.WriteDebugStatement("File does not exist");
-        } else {
+        } else if (fileNode.mIsDirectory) {
+            System.out.println("Given path is not a file");
+            output.WriteDebugStatement("Given path is not a file");
+        }else {
             FileNode.ChunkMetadata chunk = fileNode.GetChunkDataAtIndex(0);
             output.WriteString("sm-logicalfilecountresponse");
             output.WriteString(fileName);
