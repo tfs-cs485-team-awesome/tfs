@@ -76,33 +76,26 @@ public class ChunkServer implements Callbackable {
             try {
                 Path filePath = Paths.get(mChunkFileName);
                 File f = new File(mChunkFileName);
-                int errorspot = 0;
+                RandomAccessFile raf = new RandomAccessFile(f, "rw");
 
                 if (f.exists()) {
-                    BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+                    //BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+                    //byte[] intByte = new byte[4];
+                    //in.mark(0);
                     int skippedBytes = 0;
-                    byte[] intByte = new byte[4];
-                    in.mark(0);
-                    while (in.read() != -1) {
-                        in.reset(); //move back to the point before the byte
-                        in.read(intByte);
-                        skippedBytes += 4;
-                        int bytesToSkip = ByteBuffer.wrap(intByte).getInt();
-                        if (bytesToSkip > 20000) {
-                            errorspot = skippedBytes;
-                        }
-                        in.skip(bytesToSkip);
-                        skippedBytes += bytesToSkip;
-                        in.mark(skippedBytes);//mark the position before the next int
+                    while (raf.getFilePointer() < raf.length()) {
+                        //in.reset(); //move back to the point before the byte
+                        //in.read(intByte);
+                        int subFilesize = raf.readInt();
+                        raf.skipBytes(subFilesize);
+                        skippedBytes += subFilesize;
+
                     }
-                    if(errorspot > 0) {
-                        System.out.println("Errorspot: " + errorspot);
-                    }
-                    in.close();
                     System.out.println("Skipped: " + skippedBytes + "bytes");
                 } else {
                     throw new IOException("File does not exist");
                 }
+                raf.close();
                 OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
                 out.write(ByteBuffer.allocate(4).putInt(inData.length).array());
                 out.write(inData);
@@ -913,25 +906,26 @@ public class ChunkServer implements Callbackable {
                 System.out.println("counting file " + fileName);
                 Path filePath = Paths.get(fileName);
                 File f = new File(fileName);
+                int numFiles = 0;
+                RandomAccessFile raf = new RandomAccessFile(f, "rw");
+
                 if (f.exists()) {
-                    BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
-                    int numFiles = 0;
+                    //BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+                    //byte[] intByte = new byte[4];
+                    //in.mark(0);
                     int skippedBytes = 0;
-                    byte[] intByte = new byte[4];
-                    in.mark(0);
-                    while (in.read() != -1) {
-                        in.reset(); //move back to the point before the byte
-                        in.read(intByte);
-                        skippedBytes += 4;
-                        int bytesToSkip = ByteBuffer.wrap(intByte).getInt();
-                        in.skip(bytesToSkip);
-                        skippedBytes += bytesToSkip;
-                        in.mark(skippedBytes);//mark the position before the next int
+                    while (raf.getFilePointer() < raf.length()) {
+                        //in.reset(); //move back to the point before the byte
+                        //in.read(intByte);
+                        int subFilesize = raf.readInt();
+                        raf.skipBytes(subFilesize);
+                        skippedBytes += subFilesize;
                         numFiles++;
+
                     }
-                    in.close();
                     output.WriteString("cs-logicalfilecountresponse");
                     output.WriteInt(numFiles);
+                    System.out.println("Skipped: " + skippedBytes + "bytes");
                 } else {
                     output.WriteDebugStatement("File " + fileName + " does not exist");
                 }
