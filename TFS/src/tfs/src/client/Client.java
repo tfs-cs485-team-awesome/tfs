@@ -611,30 +611,10 @@ public class Client implements ClientInterface, Callbackable {
 				System.out.println(m.ReadString());
 				break;
 			case "sm-appendresponse": {
-				String filename = m.ReadString();
-				String primaryChunkInfo = m.ReadString();
-				int numReplicas = m.ReadInt();
-				String[] replicaInfo = new String[numReplicas];
-				for (int i = 0; i < numReplicas; ++i) {
-					replicaInfo[i] = m.ReadString();
-				}
-				System.out.println(filename);
-				System.out.println(primaryChunkInfo);
-				System.out.println(numReplicas);
 				SMAppendFileResponse(m);
 				break;
 			}
 			case "sm-writeresponse":
-				String filename = m.ReadString();
-				String primaryChunkInfo = m.ReadString();
-				int numReplicas = m.ReadInt();
-				String[] replicaInfo = new String[numReplicas];
-				for (int i = 0; i < numReplicas; ++i) {
-					replicaInfo[i] = m.ReadString();
-				}
-				System.out.println(filename);
-				System.out.println(primaryChunkInfo);
-				System.out.println(numReplicas);
 				SMAppendFileResponse(m);
 				break;
 			case "sm-seekfileresponse":

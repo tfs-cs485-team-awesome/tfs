@@ -268,7 +268,7 @@ public class TestCases {
                 public void run() {
                     stopRunning();
                 }
-            }, 1000);
+            }, 3000);
             try {
                 c.ConnectToServer();
 
@@ -311,7 +311,7 @@ public class TestCases {
                 public void run() {
                     new ClientTimerTask(ipAndPort, localpath, pathname);
                 }
-            }, 100 + r.nextInt(300));
+            }, 100 + r.nextInt(1000));
         }
     }
 

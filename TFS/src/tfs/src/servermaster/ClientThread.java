@@ -81,6 +81,7 @@ public class ClientThread extends Thread {
                 System.out.println(ie.getMessage());
             }
         }
+	this.interrupt();
     }
 
     public void GetFilesUnderPath(String path, Message m) {
