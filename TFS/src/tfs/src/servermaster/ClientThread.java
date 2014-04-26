@@ -196,7 +196,7 @@ public class ClientThread extends Thread {
                 WriteFile(m.ReadString(), m.ReadInt(), outputToClient);
                 break;
             case "append":
-                AppendFile(m.ReadString(), m.ReadInt(), outputToClient);
+                AppendFile(m.ReadString(), outputToClient);
                 break;
             case "stream":
                 AppendFile(m.ReadString(), outputToClient);
@@ -342,16 +342,12 @@ public class ClientThread extends Thread {
     }
 
     public void AppendFile(String fileName, Message output) {
-        AppendFile(fileName, 2, output);
-    }
-
-    public void AppendFile(String fileName, int numReplicas, Message output) {
         FileNode file = GetAtPath(fileName);
         if (file == null) {
-            CreateNewFile(fileName, numReplicas, output);
+            CreateNewFile(fileName, 2, output);
             file = GetAtPath(fileName);
             if (file == null) { // create new file failed for some reason
-                output.WriteDebugStatement("Num replicas requested: " + numReplicas + " num chunkserver: " + mMaster.mChunkServers.size());
+                //output.WriteDebugStatement("Num replicas requested: " + numReplicas + " num chunkserver: " + mMaster.mChunkServers.size());
                 return;
             }
         }

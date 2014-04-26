@@ -175,7 +175,6 @@ public class Client implements ClientInterface, Callbackable {
             }
         }
         while (!mPendingMessages.isEmpty()) {
-
             mPendingMessages.pop().Send();
             sentMessage = true;
         }
@@ -665,6 +664,7 @@ public class Client implements ClientInterface, Callbackable {
 
         Message toPrimaryChunkServer = new Message();
         toPrimaryChunkServer.WriteString("appendfile");
+        toPrimaryChunkServer.WriteString(mID);
         toPrimaryChunkServer.WriteString(filename);
         toPrimaryChunkServer.WriteInt(numReplicas);
         for (int i = 0; i < numReplicas; ++i) {

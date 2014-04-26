@@ -76,6 +76,8 @@ public class ChunkServer implements Callbackable {
             try {
                 Path filePath = Paths.get(mChunkFileName);
                 File f = new File(mChunkFileName);
+                int errorspot = 0;
+
                 if (f.exists()) {
                     BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
                     int skippedBytes = 0;
@@ -86,6 +88,9 @@ public class ChunkServer implements Callbackable {
                         in.read(intByte);
                         skippedBytes += 4;
                         int bytesToSkip = ByteBuffer.wrap(intByte).getInt();
+                        if (bytesToSkip > 20000) {
+                            errorspot = skippedBytes;
+                        }
                         in.skip(bytesToSkip);
                         skippedBytes += bytesToSkip;
                         in.mark(skippedBytes);//mark the position before the next int
@@ -98,6 +103,13 @@ public class ChunkServer implements Callbackable {
                 OutputStream out = new BufferedOutputStream(Files.newOutputStream(filePath, CREATE, APPEND));
                 out.write(ByteBuffer.allocate(4).putInt(inData.length).array());
                 out.write(inData);
+                if (errorspot > 0) {
+                    String errormsg = "error";
+                    byte[] errormsgbytes = errormsg.getBytes();
+                    System.out.println("Got error spot at " + errorspot);
+                    System.out.println(mCurrentSize + inData.length + 4);
+                    out.write(errormsg.getBytes(), errorspot, errormsg.getBytes().length);
+                }
                 out.close();
                 mCurrentSize += 4 + inData.length; //4 is for the int
                 System.out.println("Finished writing file");
@@ -662,11 +674,13 @@ public class ChunkServer implements Callbackable {
 
         public void EvaluateCSAppendFile(Message m, Message output) {
             System.out.println("Got append request from another chunk server");
+            String clientID = m.ReadString();
             String filename = m.ReadString();
             int dataSize = m.ReadInt();
             byte[] data = m.ReadData(dataSize);
             System.out.println("For file: " + filename);
             output.WriteString("cs-appendfileresponse");
+            output.WriteString(clientID);
             output.WriteString(filename);
             output.WriteString(mID);
             output.WriteInt(AppendToFile(filename, data) ? 1 : 0);
@@ -675,11 +689,12 @@ public class ChunkServer implements Callbackable {
 
         public void EvaluateCSAppendFileResponse(Message m) {
             System.out.println("Received append file response");
+            String clientID = m.ReadString();
             String filename = m.ReadString();
             String serverInfo = m.ReadString();
             int success = m.ReadInt();
             long timestamp = m.ReadLong();
-            ChunkPendingAppend chunkService = mChunkServices.get(filename);
+            ChunkPendingAppend chunkService = mChunkServices.get(clientID + "-" + filename);
             chunkService.UpdateServerStatus(serverInfo, (success == 1), filename);
             chunkService.UpdateTimeStamp(timestamp);
             if (chunkService.AllServersReplied()) {
@@ -697,7 +712,7 @@ public class ChunkServer implements Callbackable {
                     toServerMaster.WriteLong(timestamp);
                     toServerMaster.SetSocket(mServerSocket);
                     mPendingMessages.push(toServerMaster);
-                    mChunkServices.remove(filename);
+                    mChunkServices.remove(clientID + "-" + filename);
                 }
             }
             //need to check if the server is not in the chunkservices (which should never ever happen)
@@ -809,6 +824,7 @@ public class ChunkServer implements Callbackable {
 
         public void ClientAppendToFile(Message input) {
             //Message format: clientinfo, filename, data, replicaip:port, ... 
+            String clientID = input.ReadString();
             String filename = input.ReadString();
             int numReplicas = input.ReadInt();
             String[] replicaInfo = new String[numReplicas];
@@ -823,13 +839,13 @@ public class ChunkServer implements Callbackable {
             //try to find a chunkservicerequest with this filename.  server should have
             //already sent a request to this server since this is the primary
             if (replicaInfo.length > 0) {
-                ChunkPendingAppend mChunkService = mChunkServices.get(filename);
+                ChunkPendingAppend mChunkService = mChunkServices.get(clientID + "-" + filename);
                 if (mChunkService == null) {
                     //I should be the primary, but I don't have the service request yet
                     //make a new one and assume that the server will tell me i'm primary later
                     System.out.println("Making a a new chunkservicerequest.");
                     mChunkService = new ChunkPendingAppend(filename);
-                    mChunkServices.put(filename, mChunkService);
+                    mChunkServices.put(clientID + "-" + filename, mChunkService);
                 } else {
                     System.out.println("Using old chunkpendingappend.  shouldn't happen.  might happen with multiple clients");
                 }
@@ -856,6 +872,7 @@ public class ChunkServer implements Callbackable {
                 AppendToFile(filename, inData);
                 mChunkService.UpdateTimeStamp(mChunks.get(filename).mLastModified);
                 mChunkService.GetMessage().WriteString("cs-appendreplica");
+                mChunkService.GetMessage().WriteString(clientID);
                 mChunkService.GetMessage().WriteString(filename);
                 mChunkService.GetMessage().WriteInt(inData.length);
                 mChunkService.GetMessage().AppendData(inData);

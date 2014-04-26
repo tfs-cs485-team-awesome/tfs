@@ -77,7 +77,7 @@ public class TestCases {
                         System.out.println("Invalid test case, please re-enter");
                         break;
                 }
-                while(!br.ready()) {
+                while (!br.ready()) {
                     testClient.RunLoop();
                 }
             }
@@ -127,7 +127,7 @@ public class TestCases {
         }
     }
 
-    public void test2(String filePath, int numFiles) throws InterruptedException{
+    public void test2(String filePath, int numFiles) throws InterruptedException {
 
         try {
             testClient.GetListFile(filePath);
@@ -192,17 +192,63 @@ public class TestCases {
         }
     }
 
-    public void test8(String port, String localpath, String pathname, int numInstances) {
-        try {
-            Client n[] = new Client[numInstances];
-            for (int i = 1; i <= numInstances; i++) {
-                n[i] = new Client(port);
-                n[i].AppendFile(localpath, pathname);
+    private class ClientTimerTask extends Thread {
 
+        Client c;
+        boolean isRunning = true;
+        Timer stopTimer;
+
+        public ClientTimerTask(String ipAndPort, String inlocal, String inpath) {
+            System.out.println("Starting new client");
+            c = new Client(ipAndPort);
+            stopTimer = new Timer();
+            stopTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    stopRunning();
+                }
+            }, 1000);
+            try {
+                c.ConnectToServer();
+                c.AppendFile(inlocal, inpath);
+                this.start();
+            } catch (IOException ioe) {
+                System.out.println(ioe.getMessage());
             }
-        } catch (IOException e) {
-            System.out.println("Test 8 failed due to exception " + e.getMessage());
-            e.printStackTrace();
+        }
+
+        public void stopRunning() {
+            isRunning ^= true;
+        }
+
+        @Override
+        public void run() {
+            try {
+                while (isRunning) {
+                    c.RunLoop();
+                }
+                System.out.println("Exiting client");
+            } catch (IOException ioe) {
+                System.out.println(ioe.getMessage());
+            } catch (InterruptedException ie) {
+                System.out.println(ie.getMessage());
+            }
+        }
+
+    }
+
+    public void test8(final String ipAndPort, final String localpath, final String pathname, int numInstances) {
+        Random r = new Random();
+        Timer clientTimer = new Timer();
+        for (int i = 1; i <= numInstances; i++) {
+            /*n[i] = new Client(ipAndPort);
+             n[i].AppendFile(localpath, pathname);*/
+            clientTimer.schedule(new TimerTask() {
+                @Override
+                public void run() {
+                    new ClientTimerTask(ipAndPort, localpath, pathname);
+                }
+            }, 100 + r.nextInt(300));
         }
     }
 
