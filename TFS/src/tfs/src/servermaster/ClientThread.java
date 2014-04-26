@@ -169,6 +169,115 @@ public class ClientThread extends Thread {
         // return the successfully retrieved file node
         return curFile;
     }
+    
+    public Boolean ReadLockPath(String filePath) {
+        System.out.println("going to read lock " + filePath);
+        return LockPath(filePath, false);
+    }
+    
+    public Boolean WriteLockPath(String filePath) {
+        System.out.println("going to write lock " + filePath);
+        return LockPath(filePath, true);
+    }
+    
+    public Boolean LockPath(String filePath, Boolean isWriteLock) {
+        // check for the initial "/"
+        if (filePath.indexOf("/") != 0) {
+            filePath = "/" + filePath;
+        }
+        String[] filePathTokens = filePath.split("/");
+        FileNode curFile = mFileRoot;
+        // iterate through each directory in the path
+        for (int i = 1; i < filePathTokens.length; ++i) {
+            String dir = filePathTokens[i];
+            boolean dirExists = false;
+            if (!curFile.mIsDirectory) {
+                if(isWriteLock){
+                    System.out.println("trying to lock " + curFile);
+                    return curFile.RequestWriteLock();
+                } else {
+                    System.out.println("trying to lock " + curFile);
+                    return curFile.RequestReadLock();
+                }
+            }
+            // if a match is found, set current file to the match
+            for (FileNode file : curFile.mChildren) {
+                if (file.mName.equalsIgnoreCase(dir)) {
+                    curFile = file;
+                    dirExists = true;
+                    Boolean success;
+                    if(isWriteLock){
+                        System.out.println("trying to lock " + curFile);
+                        success =  curFile.RequestWriteLock();
+                    } else {
+                        System.out.println("trying to lock " + curFile);
+                        success = curFile.RequestReadLock();
+                    }
+                    if(!success){
+                        return false;
+                    }
+                    break;
+                }
+            }
+            if (!dirExists) {
+                return true;
+            }
+        }
+        return true;
+    }
+    
+    public void UnlockReadPath(String filePath) {
+        System.out.println("going to UNlock " + filePath);
+        UnlockPath(filePath, false);
+    }
+    
+    public void UnlockWritePath(String filePath) {
+        System.out.println("going to UNlock " + filePath);
+        UnlockPath(filePath, true);
+    }
+    
+    public void UnlockPath(String filePath, Boolean isWriteLock) {
+        // check for the initial "/"
+        if (filePath.indexOf("/") != 0) {
+            filePath = "/" + filePath;
+        }
+        String[] filePathTokens = filePath.split("/");
+        FileNode curFile = mFileRoot;
+        // iterate through each directory in the path
+        for (int i = 1; i < filePathTokens.length; ++i) {
+            String dir = filePathTokens[i];
+            boolean dirExists = false;
+            if (!curFile.mIsDirectory) {
+                if(isWriteLock){
+                    System.out.println("trying to UNlock " + curFile);
+                    curFile.ReleaseWriteLock();
+                    return;
+                } else {
+                    System.out.println("trying to UNlock " + curFile);
+                    curFile.ReleaseReadLock();
+                    return;
+                }
+            }
+            // if a match is found, set current file to the match
+            for (FileNode file : curFile.mChildren) {
+                if (file.mName.equalsIgnoreCase(dir)) {
+                    curFile = file;
+                    dirExists = true;
+                    if(isWriteLock){
+                        System.out.println("trying to UNlock " + curFile);
+                        curFile.ReleaseWriteLock();
+                    } else {
+                        System.out.println("trying to UNlock " + curFile);
+                        curFile.ReleaseReadLock();
+                    }
+                    break;
+                }
+            }
+            if (!dirExists) {
+                return;
+            }
+        }
+    }
 
     public Message ParseClientInput(Message m) {
         Message outputToClient = new Message();
@@ -246,7 +355,7 @@ public class ClientThread extends Thread {
             }
         }
         // check for locks in the parent node
-        if (parentNode.RequestWriteLock()) {
+        if (WriteLockPath(name)) {
             try {
                 // save file structure
                 mMaster.SaveFileStructure(true, name);
@@ -257,10 +366,12 @@ public class ClientThread extends Thread {
                 newDir.mIsDirectory = true;
                 newDir.mName = name.substring(lastIndex + 1, name.length());
                 parentNode.mChildren.add(newDir);
+                // lock newly created directory
+                newDir.RequestWriteLock();
                 System.out.println("Finished creating new dir");
                 m.WriteDebugStatement("Finished creating new dir");
             } finally {
-                parentNode.RequestWriteLock();
+                UnlockWritePath(name);
             }
         } else {
             System.out.println("Parent directory is locked, cancelling command");
@@ -317,7 +428,7 @@ public class ClientThread extends Thread {
             return;
         }
         // check for locks in the parent node
-        if (parentNode.RequestWriteLock()) {
+        if (WriteLockPath(name)) {
             try {
                 // save file structure
                 mMaster.SaveFileStructure(false, name);
@@ -328,12 +439,14 @@ public class ClientThread extends Thread {
                 newFile.mIsDirectory = false;
                 newFile.mName = name.substring(lastIndex + 1, name.length());
                 parentNode.mChildren.add(newFile);
+                // lock newly created file
+                newFile.RequestWriteLock();
                 System.out.println("Finished creating new dir");
                 m.WriteDebugStatement("Finished creating new dir");
                 //make a random chunk server the location of this new file
                 mMaster.AssignChunkServerToFile(name, numReplicas);
             } finally {
-                parentNode.ReleaseWriteLock();
+                UnlockWritePath(name);
             }
         } else {
             System.out.println("Parent directory is locked, cancelling command");
@@ -351,7 +464,7 @@ public class ClientThread extends Thread {
                 return;
             }
         }
-        if (file.RequestWriteLock()) {
+        if (WriteLockPath(fileName)) {
             try {
                 FileNode.ChunkMetadata chunk = file.GetChunkDataAtIndex(0);
                 output.WriteString("sm-appendresponse");
@@ -369,7 +482,7 @@ public class ClientThread extends Thread {
                 //toChunkServer.Send();
                 mPendingMessages.push(toChunkServer);
             } finally {
-                file.ReleaseWriteLock();
+                UnlockWritePath(fileName);
             }
         } else {
             System.out.println("File is locked, cancelling append command");
@@ -392,7 +505,7 @@ public class ClientThread extends Thread {
             output.WriteDebugStatement("Too many replicas requested");
             return;
         }
-        if (file.RequestWriteLock()) {
+        if (WriteLockPath(fileName)) {
             try {
                 FileNode.ChunkMetadata chunk = file.GetChunkDataAtIndex(0);
                 output.WriteString("sm-writeresponse");
@@ -411,7 +524,7 @@ public class ClientThread extends Thread {
                  mPendingMessages.push(toChunkServer);
                  */
             } finally {
-                file.ReleaseWriteLock();
+                UnlockWritePath(fileName);
             }
         } else {
             System.out.println("File is locked, cancelling write command");
@@ -441,15 +554,20 @@ public class ClientThread extends Thread {
         if (fileNode == null) {
             System.out.println("File does not exist");
             output.WriteDebugStatement("File does not exist");
-        } else {
-            //TODO error check if the file.GetChunkDataAtIndex return null
-            FileNode.ChunkMetadata chunk = fileNode.GetChunkDataAtIndex(0);
-            output.WriteString("sm-readfileresponse");
-            output.WriteString(fileName);
-            output.WriteString(chunk.GetPrimaryLocation());
-            output.WriteInt(chunk.GetReplicaLocations().size());
-            for (String s : chunk.GetReplicaLocations()) {
-                output.WriteString(s);
+        } 
+        if (ReadLockPath(fileName)) {
+            try {
+                //TODO error check if the file.GetChunkDataAtIndex return null
+                FileNode.ChunkMetadata chunk = fileNode.GetChunkDataAtIndex(0);
+                output.WriteString("sm-readfileresponse");
+                output.WriteString(fileName);
+                output.WriteString(chunk.GetPrimaryLocation());
+                output.WriteInt(chunk.GetReplicaLocations().size());
+                for (String s : chunk.GetReplicaLocations()) {
+                    output.WriteString(s);
+                }
+            } finally {
+                UnlockReadPath(fileName);
             }
         }
     }
@@ -474,14 +592,14 @@ public class ClientThread extends Thread {
             return;
         }
         // check for locks in file directory
-        if (fileDir.RequestReadLock()) {
+        if (ReadLockPath(filePath)) {
             try {
                 for (FileNode file : fileDir.mChildren) {
                     System.out.println(file.mName);
                     m.WriteDebugStatement(file.mName);
                 }
             } finally {
-                fileDir.ReleaseReadLock();
+                UnlockReadPath(filePath);
             }
         } else {
             System.out.println("Directory is locked, cancelling command");
@@ -528,61 +646,53 @@ public class ClientThread extends Thread {
             }
         }
         // check for locks in the parent node
-        // check for locks in the parent node
-        if (parentNode.RequestWriteLock()) {
+        // check for locks in the current node
+        if (WriteLockPath(path)) {
             try {
-                if (file.RequestWriteLock()) {
-                    try {
-                        // check if the path is a file
-                        if (!file.mIsDirectory) {
-                            DeleteFile(path, m);
-                            return;
-                        }
-                        ArrayList<String> allFiles = new ArrayList<String>();
-                        ArrayList<String> allDirs = new ArrayList<String>();
-                        allDirs.add(path);
-                        // find all children in the directory
-                        Boolean success = true;
-                        for (FileNode child : file.mChildren) {
-                            if (child.mIsDirectory) {
-                                allDirs.add(path + "/" + child.mName);
-                                success = RecursiveDeleteDirectory(path + "/" + child.mName, child, allDirs, allFiles, m);
-                            } else {
-                                allFiles.add(path + "/" + child.mName);
-                                success = true;
-                            }
-                        }
-                        if (!success) {
-                            System.out.println("Directory is in use, cancelling delete");
-                            m.WriteDebugStatement("Directory is in use, cancelling delete");
-                        } else {
-                            // delete files from file structure
-                            for (String fileName : allFiles) {
-                                DeleteFile(fileName, m);
-                            }
-                            // delete directories from file structure
-                            for (String dir : allDirs) {
-                                DeleteFromFileStructure(true, dir);
-                                // delete directory
-                                System.out.println("Deleting directory " + dir);
-                                m.WriteDebugStatement("Deleting directory " + dir);
-                            }
-                            // remove link from parent node to this directory
-                            parentNode.mChildren.remove(file);
-                        }
-                    } finally {
-                        file.ReleaseWriteLock();
+                // check if the path is a file
+                if (!file.mIsDirectory) {
+                    DeleteFile(path, m);
+                    return;
+                }
+                ArrayList<String> allFiles = new ArrayList<String>();
+                ArrayList<String> allDirs = new ArrayList<String>();
+                allDirs.add(path);
+                // find all children in the directory
+                Boolean success = true;
+                for (FileNode child : file.mChildren) {
+                    if (child.mIsDirectory) {
+                        allDirs.add(path + "/" + child.mName);
+                        success = RecursiveDeleteDirectory(path + "/" + child.mName, child, allDirs, allFiles, m);
+                    } else {
+                        allFiles.add(path + "/" + child.mName);
+                        success = true;
                     }
+                }
+                if (!success) {
+                    System.out.println("Directory is in use, cancelling delete");
+                    m.WriteDebugStatement("Directory is in use, cancelling delete");
                 } else {
-                    System.out.println("File is currently in use, cancelling command");
-                    m.WriteDebugStatement("File is currently in use, cancelling command");
+                    // delete files from file structure
+                    for (String fileName : allFiles) {
+                        DeleteFile(fileName, m);
+                    }
+                    // delete directories from file structure
+                    for (String dir : allDirs) {
+                        DeleteFromFileStructure(true, dir);
+                        // delete directory
+                        System.out.println("Deleting directory " + dir);
+                        m.WriteDebugStatement("Deleting directory " + dir);
+                    }
+                    // remove link from parent node to this directory
+                    parentNode.mChildren.remove(file);
                 }
             } finally {
-                parentNode.ReleaseWriteLock();
+                UnlockWritePath(path);
             }
-        } else {
-            System.out.println("Parent directory is locked, cancelling command");
-            m.WriteDebugStatement("Parent directory is locked, cancelling command");
+        } 
+        else {
+            System.out.println("File directory is locked, cancelling command");
+            m.WriteDebugStatement("File directory is locked, cancelling command");
         }
     }
 
@@ -598,35 +708,25 @@ public class ClientThread extends Thread {
             String parent = filePath.substring(0, lastIndex);
             parentNode = GetAtPath(parent);
         }
-        // grab write lock on parent node
-        if (parentNode.RequestWriteLock()) {
-            // delete file from file structure
-            DeleteFromFileStructure(false, filePath);
-            // delete file
-            System.out.println("Deleting file " + filePath);
-            m.WriteDebugStatement("Deleting file " + filePath);
-            parentNode.mChildren.remove(file);
-            try {
-                FileNode.ChunkMetadata chunk = file.GetChunkDataAtIndex(0);
-                Message toChunkServer = new Message();
-                toChunkServer.WriteString("sm-deletefile");
-                toChunkServer.WriteString(filePath);
-                toChunkServer.SetSocket(mMaster.GetChunkSocket(chunk.GetPrimaryLocation()));
-                mPendingMessages.push(toChunkServer);
-                for (int i = 0; i < chunk.GetReplicaLocations().size(); i++) {
-                    chunk = file.GetChunkDataAtIndex(0);
-                    toChunkServer = new Message();
-                    toChunkServer.WriteString("sm-deletefile");
-                    toChunkServer.WriteString(filePath);
-                    toChunkServer.SetSocket(mMaster.GetChunkSocket(chunk.GetReplicaLocations().get(i)));
-                    mPendingMessages.push(toChunkServer);
-                }
-            } finally {
-                parentNode.ReleaseWriteLock();
-            }
-        } else {
-            System.out.println("Parent directory is locked, cancelling delete command");
-            m.WriteDebugStatement("Parent directory is locked, cancelling delete command");
+        // delete file from file structure
+        DeleteFromFileStructure(false, filePath);
+        // delete file
+        System.out.println("Deleting file " + filePath);
+        m.WriteDebugStatement("Deleting file " + filePath);
+        parentNode.mChildren.remove(file);
+        FileNode.ChunkMetadata chunk = file.GetChunkDataAtIndex(0);
+        Message toChunkServer = new Message();
+        toChunkServer.WriteString("sm-deletefile");
+        toChunkServer.WriteString(filePath);
+        toChunkServer.SetSocket(mMaster.GetChunkSocket(chunk.GetPrimaryLocation()));
+        mPendingMessages.push(toChunkServer);
+        for (int i = 0; i < chunk.GetReplicaLocations().size(); i++) {
+            chunk = file.GetChunkDataAtIndex(0);
+            toChunkServer = new Message();
+            toChunkServer.WriteString("sm-deletefile");
+            toChunkServer.WriteString(filePath);
+            toChunkServer.SetSocket(mMaster.GetChunkSocket(chunk.GetReplicaLocations().get(i)));
+            mPendingMessages.push(toChunkServer);
         }
     }
 
