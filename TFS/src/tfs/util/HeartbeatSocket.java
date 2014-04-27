@@ -13,7 +13,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 /**
- *
+ * Sends a heartbeat to check if server is responsive
  * @author laurencewong
  */
 public class HeartbeatSocket extends Thread {
@@ -62,20 +62,32 @@ public class HeartbeatSocket extends Thread {
         mCallback = inCallback;
         AddHeartbeat(inTheirID, inTheirID);
     }
-
+    /**
+     * Gets the IP address
+     * @return string containing IP address
+     * @throws IOException 
+     */
     public final String GetIP() throws IOException {
         String ip = InetAddress.getLocalHost().toString();
         ip = ip.substring(ip.indexOf("/") + 1);
         return ip;
     }
-
+    /**
+     * Receives a response message from the server
+     * @return Message object containing response
+     * @throws IOException 
+     */
     public Message ReceiveMessage() throws IOException {
         byte[] receiveData = new byte[128]; // shouldn't be sending that much info
         DatagramPacket receivePacket = new DatagramPacket(receiveData, receiveData.length);
         mSocket.receive(receivePacket);
         return new Message(receivePacket.getData());
     }
-
+    /**
+     * Adds server to list in order to be checked by heartbeat
+     * @param inID
+     * @param inIPAndPort 
+     */
     public final void AddHeartbeat(String inID, String inIPAndPort) {
         try {
             //
@@ -100,7 +112,7 @@ public class HeartbeatSocket extends Thread {
             System.out.println(uhe.getMessage());
         }
     }
-
+    
     public String GetIPAndPort() {
         return mIPAndPort;
     }
@@ -110,7 +122,9 @@ public class HeartbeatSocket extends Thread {
         mTimer.cancel();
         this.join();
     }
-
+    /**
+     * Launches timer which sends out heartbeat messages
+     */
     private void StartUpdater() {
         mTimer.scheduleAtFixedRate(new TimerTask() {
 
@@ -126,7 +140,9 @@ public class HeartbeatSocket extends Thread {
             }
         }, 0, 250);
     }
-
+    /**
+     * Sends a heartbeat message to all servers
+     */
     private void SendHeartbeat() {
         try {
             Message m = new Message();
@@ -147,7 +163,11 @@ public class HeartbeatSocket extends Thread {
             System.out.println(ioe.getMessage());
         }
     }
-
+    /**
+     * Returns true if a new heartbeat is found
+     * @param inID
+     * @return true or false
+     */
     private boolean IsNewHeartbeat(String inID) {
         synchronized (mStatuses) {
             if (mStatuses.containsKey(inID)) {
@@ -157,13 +177,18 @@ public class HeartbeatSocket extends Thread {
         //System.out.println("Found new heartbeat: " + inID);
         return true;
     }
-
+    /**
+     * Resets timeout once heartbeat is received
+     * @param inID 
+     */
     private void UpdateHeartbeat(String inID) {
         synchronized (mStatuses) {
             mStatuses.get(inID).mTimeout = 0;
         }
     }
-
+    /**
+     * Culls any servers that have not responded for set number of seconds (MAX_TIMEOUT)
+     */
     private void CullDeadHeartbeats() {
         ArrayList<HeartbeatStatus> deadStatuses = new ArrayList<>();
         synchronized (mStatuses) {

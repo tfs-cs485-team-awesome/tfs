@@ -709,7 +709,12 @@ public class ClientThread extends Thread {
 			}
 		}
 	}
-
+        /**
+         * Checks if the given path points to a directory. If it is, and if there are any files in the directory, checks for locks in the file
+         * directory. If there are no locks, all files in the directory are printed.
+         * @param filePath
+         * @param m 
+         */
 	public void ListFiles(String filePath, Message m) {
 		System.out.println("Listing files for path: " + filePath);
 		m.WriteDebugStatement("Listing files for path: " + filePath);
@@ -744,7 +749,12 @@ public class ClientThread extends Thread {
 			m.WriteDebugStatement("Directory is locked, cancelling command");
 		}
 	}
-
+        /**
+         * Checks if the directory given is the root. If not, and if it exists, the directory is checked for any locks on the directory and
+         * on its parent directory. If there are no locks, the directory is deleted.
+         * @param path
+         * @param m 
+         */
 	public void DeleteDirectory(String path, Message m) {
 		// check for the first "/"
 		int firstIndex = path.indexOf("/");
@@ -832,7 +842,11 @@ public class ClientThread extends Thread {
 			m.WriteDebugStatement("File directory is locked, cancelling command");
 		}
 	}
-
+        /**
+         * Deletes the file at the given filepath, sends a message to the chunkservers to delete all replicas of the file
+         * @param filePath
+         * @param m 
+         */
 	public void DeleteFile(String filePath, Message m) {
 		// retrieve file node
 		FileNode file = GetAtPath(filePath);
@@ -866,7 +880,12 @@ public class ClientThread extends Thread {
 			mPendingMessages.push(toChunkServer);
 		}
 	}
-
+        /**
+         * Finds the file at the given pathname, checks if it is a directory or a file. If it is a file, the file is located, and if it exists,
+         * it is deleted from the file structure.
+         * @param isDirectory true if the given path points to a directory, false if it points to a file
+         * @param name pathname of the node to delete
+         */
 	public void DeleteFromFileStructure(Boolean isDirectory, String name) {
 		String lineToDelete;
 		if (isDirectory) {
