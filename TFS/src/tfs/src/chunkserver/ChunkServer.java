@@ -20,7 +20,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Timer;
-import java.util.TimerTask;
 import tfs.util.Message;
 import tfs.util.MySocket;
 import tfs.util.ChunkPendingAppend;
@@ -43,7 +42,7 @@ public class ChunkServer implements Callbackable {
 		}
 	}
 
-    //have chunks named: filename<chunk#>
+	//have chunks named: filename<chunk#>
 	//for example: if the actual file is stories.txt and it has 3 chunks,
 	//the chunks would be named stories-0, stories-1, stories-3
 	private class Chunk {
@@ -65,7 +64,7 @@ public class ChunkServer implements Callbackable {
 			mChunkFileName = inName;
 			mLastModified = timeStamp;
 			if (!mChunkFile.createNewFile()) {
-                //createNewFile returns false if file already exists
+				//createNewFile returns false if file already exists
 				//not sure how to handle this yet
 			} else {
 				//file did not exist and has been created
@@ -79,12 +78,12 @@ public class ChunkServer implements Callbackable {
 				RandomAccessFile raf = new RandomAccessFile(f, "rw");
 
 				if (f.exists()) {
-                    //BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+					//BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
 					//byte[] intByte = new byte[4];
 					//in.mark(0);
 					int skippedBytes = 0;
 					while (raf.getFilePointer() < raf.length()) {
-                        //in.reset(); //move back to the point before the byte
+						//in.reset(); //move back to the point before the byte
 						//in.read(intByte);
 						int subFilesize = raf.readInt();
 						raf.skipBytes(subFilesize);
@@ -473,49 +472,6 @@ public class ChunkServer implements Callbackable {
 			outputToChunk.SetSocket(newChunkServerSocket);
 			mPendingMessages.push(outputToChunk);
 		}
-		/*
-		 public void UnBecomePrimary(String chunkFilename) {
-		 synchronized (mChunkServices) {
-		 if (mChunkServices.get(chunkFilename) == null) {
-		 //chunk does not exist
-		 System.out.println("SUPER BAD ERROR: I am scheduled to unbecome"
-		 + " the primary of a missing chunk! :( :( :(");
-		 }
-		 mChunkServices.get(chunkFilename).mIsPrimary = false;
-		 //do other things that happen when i am no longer primary
-		 }
-		 }
-		 */
-		/*
-		 public void BecomePrimary(String chunkFilename, Message output) {
-		 //check if chunkfile exists
-		 if (mChunks.get(chunkFilename) == null) {
-		 //chunk does not exist
-		 //not sure what to do here :(
-		 System.out.println("Tried to become primary of chunk that does not exist");
-		 output.WriteDebugStatement("Tried to become primary of chunk that does not exist");
-		 return;
-		 }
-		 //chunk does exist
-		 System.out.println("Chunk I am to become primary of exists");
-		 ChunkAppendRequest chunkService = mChunkServices.get(chunkFilename);
-		 if (chunkService == null) {
-		 mChunkServices.put(chunkFilename, new ChunkAppendRequest(true, chunkFilename));
-		 } else {
-		 chunkService.mIsPrimary = true;
-		 }
-		 //scheduled to stop being primary in 60s
-		 Timer newTimer = new Timer();
-		 newTimer.schedule(new PrimaryTimer(chunkFilename) {
-		 @Override
-		 public void run() {
-		 UnBecomePrimary(chunkFilename);
-		 }
-		 }, 0, 60000);
-		 mPrimaryTimers.add(newTimer);
-		 output.WriteDebugStatement("Am the primary of chunk " + chunkFilename);
-		 }
-		 */
 
 		public void MakeNewChunk(String chunkFilename) {
 			MakeNewChunk(chunkFilename, System.currentTimeMillis() / 1000);
@@ -642,7 +598,7 @@ public class ChunkServer implements Callbackable {
 		}
 
 		public void EvaluateCSUpdateFile(Message m, Message output) {
-            //primary receives this from the server that needs to update its files
+			//primary receives this from the server that needs to update its files
 			//filename
 			String fileName = m.ReadString();
 			System.out.println("someone needs to update file: " + fileName);
@@ -697,7 +653,7 @@ public class ChunkServer implements Callbackable {
 					//chunkService.resendMessage();
 				} else {
 					System.out.println("All servers were successful");
-                    //send success to client
+					//send success to client
 					//send servermaster the timestamp for the chunk
 					Message toServerMaster = new Message();
 					toServerMaster.WriteString("appendtimestamp");
@@ -719,10 +675,6 @@ public class ChunkServer implements Callbackable {
 				case "print":
 					System.out.println(m.ReadString());
 					break;
-				case "seekfile":
-				case "seek":
-					SeekFile(m.ReadString(), m.ReadInt(), m.ReadInt(), outputToClient);
-					break;
 				case "appendfile":
 				case "append":
 					System.out.println("Writing file");
@@ -735,12 +687,56 @@ public class ChunkServer implements Callbackable {
 				case "logicalfilecount":
 					LogicalFileCount(m.ReadString(), outputToClient);
 					break;
+				case "readhaystackfile":
+					ReadHaystackFile(m.ReadString(), m.ReadInt(), outputToClient);
+					break;
 				default:
 					System.out.println("Client gave chunk server wrong command");
 					break;
 			}
 			System.out.println("Finished client input");
 			return outputToClient;
+		}
+
+		public void ReadHaystackFile(String fileName, int inIndex, Message output) {
+			try {
+				fileName = fileName.replaceAll("/", ".");
+				System.out.println("counting file " + fileName);
+				File f = new File(fileName);
+				int numFiles = 0;
+				RandomAccessFile raf = new RandomAccessFile(f, "r");
+				byte[] readData = null;
+				if (f.exists()) {
+					int skippedBytes = 0;
+					while (raf.getFilePointer() < raf.length()) {
+						//in.reset(); //move back to the point before the byte
+						//in.read(intByte);
+						int subFilesize = raf.readInt();
+						if (inIndex == numFiles) {
+							readData = new byte[subFilesize];
+							raf.read(readData);
+							break;
+						}
+						raf.skipBytes(subFilesize);
+						skippedBytes += subFilesize;
+						numFiles++;
+					}
+					raf.close();
+					if (numFiles != inIndex) { //index was never found
+						output.WriteDebugStatement("Haystackfile: " + fileName + " does not have index " + inIndex);
+					} else {
+						output.WriteString("cs-readfileresponse");
+						output.WriteString(fileName);
+						output.WriteInt(readData.length);
+						output.AppendData(readData);
+					}
+					System.out.println("Skipped: " + skippedBytes + "bytes");
+				} else {
+					output.WriteDebugStatement("File " + fileName + " does not exist");
+				}
+			} catch (IOException ioe) {
+				System.out.println(ioe.getMessage());
+			}
 		}
 
 		public void ReadFile(Message input, Message output) {
@@ -768,24 +764,6 @@ public class ChunkServer implements Callbackable {
 			}
 		}
 
-		public void SeekFile(String filename, int offset, int length, Message output) {
-			filename = filename.replaceAll("/", ".");
-			byte[] data = new byte[length];
-			Chunk chunkToRead = mChunks.get(filename);
-			if (chunkToRead == null) {
-				output.WriteDebugStatement("Chunk does not exist");
-				System.out.println("Chunk does not exist");
-			} else {
-				if (chunkToRead.ReadFrom(offset, length, data)) {
-					output.WriteString("cs-seekfileresponse");
-					output.WriteInt(length);
-					output.AppendData(data);
-				} else {
-					output.WriteDebugStatement("Failed to read given length from offset");
-				}
-			}
-		}
-
 		public boolean AppendToFile(String filename, byte[] inData) {
 			Chunk chunkToAppend = mChunks.get(filename);
 			if (chunkToAppend == null) {
@@ -794,7 +772,7 @@ public class ChunkServer implements Callbackable {
 			}
 			if (chunkToAppend.mCurrentSize + 4 + inData.length > MAX_CHUNK_SIZE) {
 				System.out.println("Not enough space to append data");
-                //make a new chunk
+				//make a new chunk
 				//tell server that you're making a new chunk
 				//fill up the current chunk
 				chunkToAppend.FillUp();
@@ -807,7 +785,7 @@ public class ChunkServer implements Callbackable {
 					//it was successful
 				} else {
 					System.out.println("Appending data was not successful");
-                    //it was not successful and need to tell primary unless
+					//it was not successful and need to tell primary unless
 					//i am the primary
 					return false;
 				}
@@ -829,12 +807,12 @@ public class ChunkServer implements Callbackable {
 
 			filename = filename.replace("/", ".");
 
-            //try to find a chunkservicerequest with this filename.  server should have
+			//try to find a chunkservicerequest with this filename.  server should have
 			//already sent a request to this server since this is the primary
 			if (replicaInfo.length > 0) {
 				ChunkPendingAppend mChunkService = mChunkServices.get(clientID + "-" + filename);
 				if (mChunkService == null) {
-                    //I should be the primary, but I don't have the service request yet
+					//I should be the primary, but I don't have the service request yet
 					//make a new one and assume that the server will tell me i'm primary later
 					System.out.println("Making a a new chunkservicerequest.");
 					mChunkService = new ChunkPendingAppend(filename);
@@ -914,12 +892,12 @@ public class ChunkServer implements Callbackable {
 				RandomAccessFile raf = new RandomAccessFile(f, "rw");
 
 				if (f.exists()) {
-                    //BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+					//BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
 					//byte[] intByte = new byte[4];
 					//in.mark(0);
 					int skippedBytes = 0;
 					while (raf.getFilePointer() < raf.length()) {
-                        //in.reset(); //move back to the point before the byte
+						//in.reset(); //move back to the point before the byte
 						//in.read(intByte);
 						int subFilesize = raf.readInt();
 						raf.skipBytes(subFilesize);

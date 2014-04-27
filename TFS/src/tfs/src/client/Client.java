@@ -283,12 +283,11 @@ public class Client implements ClientInterface, Callbackable {
 			case "listfiles":
 			case "ls":
 				return ParseListFiles(inStrings, toServer);
-			case "seekfile":
-			case "seek":
-				return ParseSeekFile(inStrings, toServer);
 			case "readfile":
 			case "read":
 				return ParseReadFile(inStrings, toServer);
+			case "readhaystack":
+				return ParseReadHaystackFile(inStrings, toServer);
 			case "append":
 			case "appendtofile":
 				return ParseAppendFileToFile(inStrings, toServer);
@@ -504,6 +503,29 @@ public class Client implements ClientInterface, Callbackable {
 		return true;
 	}
 
+	public boolean ParseReadHaystackFile(String[] inString, Message toServer) {
+		if (inString.length != 4) {
+			System.out.println("Invalid number of arguments");
+			return false;
+		}
+
+		File tempFile = new File(inString[2]);
+		if (tempFile.exists()) {
+			System.out.println("Local file " + inString[2] + " already exists. Aborting");
+			return false;
+		}
+
+		toServer.WriteString(inString[0]); //command
+		toServer.WriteString(inString[1]); //remote filename
+		toServer.WriteInt(Integer.parseInt(inString[2])); //index into filename
+
+		ChunkQueryRequest newChunkQueryRequest = new ChunkQueryRequest(inString[1], ChunkQueryRequest.QueryType.READ);
+		newChunkQueryRequest.PutData(inString[3].getBytes());
+		mPendingChunkQueries.push(newChunkQueryRequest);
+
+		return true;
+	}
+
 	public boolean ParseReadFile(String[] inString, Message toServer) {
 		//cmd remotefilename localfilename
 
@@ -526,35 +548,6 @@ public class Client implements ClientInterface, Callbackable {
 		newChunkQueryRequest.PutData(inString[2].getBytes());
 		mPendingChunkQueries.push(newChunkQueryRequest);
 
-		return true;
-	}
-
-	public boolean ParseSeekFile(String[] inString, Message toServer) {
-		//cmd filename offset len
-
-		if (inString.length != 4) {
-			System.out.println("Invalid number of arguments");
-			return false;
-		}
-		toServer.WriteString(inString[0]);
-
-		toServer.WriteString(inString[1]);
-
-		int sizeOfData = 0;
-		if (!inString[2].matches("[0-9]+")) {
-			System.out.println("Invalid argument type");
-			return false;
-		} else {
-			toServer.WriteInt(Integer.valueOf(inString[2]));
-			sizeOfData = Integer.valueOf(inString[2]);
-		}
-
-		if (!inString[3].matches("[0-9]+")) {
-			System.out.println("Invalid argument type");
-			return false;
-		} else {
-			toServer.WriteInt(Integer.valueOf(inString[3]));
-		}
 		return true;
 	}
 
@@ -617,10 +610,6 @@ public class Client implements ClientInterface, Callbackable {
 			case "sm-writeresponse":
 				SMAppendFileResponse(m);
 				break;
-			case "sm-seekfileresponse":
-				//name datalen data
-				SeekFileResponse(m);
-				break;
 			case "sm-getnoderesponse": {
 				//try {
 				mTempFileNode = new FileNode(false);
@@ -634,6 +623,9 @@ public class Client implements ClientInterface, Callbackable {
 			}
 			case "sm-readfileresponse":
 				SMReadFileResponse(m);
+				break;
+			case "sm-readhaystackresponse":
+				SMReadHaystackFileResponse(m);
 				break;
 			case "sm-testpathresponse":
 				TestPathResponse(m);
@@ -742,8 +734,32 @@ public class Client implements ClientInterface, Callbackable {
 		return returnStrings;
 	}
 
+	public void SMReadHaystackFileResponse(Message m) throws IOException {
+		String filename = m.ReadString();
+		int indexIntoHaystack = m.ReadInt();
+		String primaryChunkInfo = m.ReadString();
+		System.out.println("Read primary info: " + primaryChunkInfo);
+		int numReplicas = m.ReadInt();
+		String[] replicaInfo = new String[numReplicas];
+		for (int i = 0; i < numReplicas; ++i) {
+			replicaInfo[i] = m.ReadString();
+		}
+		MySocket newChunkServerSocket = GetSocketForID(primaryChunkInfo);
+		if (newChunkServerSocket == null) {
+			System.out.println("Making new chunk server socket");
+			newChunkServerSocket = new MySocket(primaryChunkInfo);
+			InitConnectionWithChunkServer(newChunkServerSocket);
+			mChunkServerSockets.add(newChunkServerSocket);
+		}
+		Message toPrimaryChunkServer = new Message();
+		toPrimaryChunkServer.WriteString("readhaystackfile");
+		toPrimaryChunkServer.WriteString(GetRequestWithFilename(filename).GetName());
+		toPrimaryChunkServer.WriteInt(indexIntoHaystack);
+		toPrimaryChunkServer.SetSocket(newChunkServerSocket);
+		mPendingMessages.push(toPrimaryChunkServer);
+	}
+
 	public void SMReadFileResponse(Message m) throws IOException {
-		System.out.println("Got smreadfileresponse");
 		String filename = m.ReadString();
 		String primaryChunkInfo = m.ReadString();
 		System.out.println("Read primary info: " + primaryChunkInfo);
@@ -760,7 +776,6 @@ public class Client implements ClientInterface, Callbackable {
 			InitConnectionWithChunkServer(newChunkServerSocket);
 			mChunkServerSockets.add(newChunkServerSocket);
 		}
-		System.out.println("Writing message to chunk server");
 		Message toPrimaryChunkServer = new Message();
 		toPrimaryChunkServer.WriteString("readfile");
 		toPrimaryChunkServer.WriteString(GetRequestWithFilename(filename).GetName());
@@ -778,19 +793,6 @@ public class Client implements ClientInterface, Callbackable {
 		 WriteLocalFile(filename, bytesRead);*/
 	}
 
-	public void WriteFileResponse(Message m) {
-        // if master returns chunk to be created, contact chunk server to create chunks
-
-		// after getting chunks, append to end of chunk
-	}
-
-	public void SeekFileResponse(Message m) throws IOException {
-		String filename = m.ReadString();
-		int bytesToRead = m.ReadInt();
-		byte[] bytesRead = m.ReadData(bytesToRead);
-		WriteLocalFile(filename, bytesRead);
-	}
-
 	public void ParseChunkInput(Message m) throws IOException, UnknownHostException {
 		String input = m.ReadString();
 		System.out.println("Read " + input + " from chunk server");
@@ -806,7 +808,6 @@ public class Client implements ClientInterface, Callbackable {
 	}
 
 	public void CSReadFileResponse(Message m) throws IOException {
-		System.out.println("Got csreadfileresponse");
 		String filename = m.ReadString();
 		filename = filename.replaceAll("\\.", "/");
 		ChunkQueryRequest chunkQuery = GetRequestWithFilename(filename);
@@ -826,53 +827,26 @@ public class Client implements ClientInterface, Callbackable {
 
 	@Override
 	public void CreateFile(String fileName) throws IOException {
-		//sentence = "touch " + fileName;
 		mTestInput.push("touch " + fileName);
-		/*
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }
-		 */
-
 	}
 
 	@Override
 	public void CreateDir(String dirName) throws IOException {
-		//sentence = "mkdir " + dirName;
 		mTestInput.push("mkdir " + dirName);
-		/*
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }
-		 */
 	}
 
 	@Override
 	public void DeleteFile(String fileName) throws IOException {
-		/*sentence = "rm " + fileName;
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }*/
 		mTestInput.push("rm " + fileName);
 	}
 
 	@Override
 	public void ListFile(String path) throws IOException {
-		/*
-		 sentence = "ls " + path;
-		 System.out.println(sentence);
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }*/
 		mTestInput.push("ls " + path);
 	}
 
 	@Override
 	public void GetListFile(String path) throws IOException {
-		/*
-		 sentence = "GetFilesUnderPath " + path;
-		 SendMessage();
-		 while (!ReceiveMessage());*/
 		mTestInput.push("GetFilesUnderPath " + path);
 	}
 
@@ -887,52 +861,22 @@ public class Client implements ClientInterface, Callbackable {
 
 	@Override
 	public void ReadFile(String remotefilename, String localfilename) throws IOException {
-		/*
-		 sentence = "read " + remotefilename + " " + localfilename;
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }
-		 while (!ReceiveMessage());*/
 		mTestInput.push("read " + remotefilename + " " + localfilename);
 	}
 
 	@Override
 	public void WriteFile(String localfilename, String remotefilename, int numReplicas) throws IOException {
-		/*
-		 sentence = "write " + localfilename + " " + remotefilename + " " + numReplicas;
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }*/
 		mTestInput.push("write " + localfilename + " " + remotefilename + " " + numReplicas);
-		//throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
 	}
 
 	@Override
 	public void AppendFile(String localfilename, String remotefilename) throws IOException {
-		/*
-		 sentence = "append " + localfilename + " " + remotefilename;
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }
-		 SendMessage();*/
 		mTestInput.push("append " + localfilename + " " + remotefilename);
 	}
 
 	@Override
 	public void GetAtFilePath(String path) throws IOException {
-		/*
-		 sentence = "GetNode " + path;
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }
-		 return mTempFileNode;
-		 */
+
 		mTestInput.push("GetNode " + path);
 	}
 
@@ -956,11 +900,6 @@ public class Client implements ClientInterface, Callbackable {
 
 	@Override
 	public void CountFiles(String remotename) throws IOException {
-		/*
-		 sentence = "LogicalFileCount " + remotename;
-		 if (SendMessage()) {
-		 while (!ReceiveMessage());
-		 }*/
 		mTestInput.push("LogicalFileCount " + remotename);
 
 	}
