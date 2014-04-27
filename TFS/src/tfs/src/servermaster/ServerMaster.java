@@ -34,19 +34,32 @@ public class ServerMaster implements Callbackable {
 
     final int NUM_REPLICAS = 3;
 
+    /**
+     * Returns IP Address
+     * @return ip address
+     * @throws IOException 
+     */
     public final String GetIP() throws IOException {
         String ip = InetAddress.getLocalHost().toString();
         ip = ip.substring(ip.indexOf("/") + 1);
         return ip;
     }
 
+    /**
+     * Initialize the file system
+     */
     public final void Init() {
         mFileRoot = new FileNode(false);
         mFileRoot.mName = "/";
         mPendingMessages = new ArrayDeque<>();
         mSocketsToClose = new ArrayDeque<>();
     }
-
+    
+    /**
+     * Getter function for ChunkSocket ID
+     * @param inSocketID the ChunkSocket ID
+     * @return 
+     */
     public MySocket GetChunkSocket(String inSocketID) {
         //most likely chunk socket, so search those first
         synchronized (mChunkServers) {
@@ -54,6 +67,10 @@ public class ServerMaster implements Callbackable {
         }
     }
 
+    /**
+     * Constructor for ServerMaster
+     * @param inSocketNum the socket number
+     */
     public ServerMaster(int inSocketNum) {
         Init();
         try {
@@ -66,6 +83,9 @@ public class ServerMaster implements Callbackable {
         }
     }
 
+    /**
+     * Default Constructor for ServerMaster
+     */
     public ServerMaster() {
         Init();
         try {
@@ -77,6 +97,9 @@ public class ServerMaster implements Callbackable {
         }
     }
 
+    /**
+     * Busy loop that checks for new clients and chunkservers
+     */
     public void RunLoop() {
         System.out.println("Starting server");
         try {
@@ -132,6 +155,11 @@ public class ServerMaster implements Callbackable {
                 "Exiting server");
     }
 
+    /**
+     * Saves File Structure to a file
+     * @param isDirectory directory boolean of filestructure
+     * @param name the name of file structure
+     */
     public synchronized void SaveFileStructure(Boolean isDirectory, String name) {
         System.out.println("Saving file structure");
         FileNode file = GetAtPath(name);
@@ -153,6 +181,11 @@ public class ServerMaster implements Callbackable {
         }
     }
 
+    /**
+     * Find file at given path
+     * @param filePath the path to look for file
+     * @return 
+     */
     public FileNode GetAtPath(String filePath) {
         // check for the initial "/"
         if (filePath.indexOf("/") != 0) {
@@ -184,10 +217,19 @@ public class ServerMaster implements Callbackable {
         return curFile;
     }
 
+    /**
+     * Removes server information from FileNode
+     * @param ReplicaInfo the server information
+     */
     public void RemoveLocationFromFiles(String ReplicaInfo) {
         RecurseRemoveLocationFromFiles(mFileRoot, ReplicaInfo);
     }
 
+    /**
+     * Recursively removes server information from FileNode and child nodes
+     * @param curNode the current node 
+     * @param ReplicaInfo the server information
+     */
     public void RecurseRemoveLocationFromFiles(FileNode curNode, String ReplicaInfo) {
         if (curNode.mIsDirectory) {
             for (FileNode fn : curNode.mChildren) {
@@ -199,6 +241,11 @@ public class ServerMaster implements Callbackable {
         }
     }
 
+    /**
+     * Assigns Chunk Server to File
+     * @param fileName the file name
+     * @param numReplicas the number of replicas file should have
+     */
     public void AssignChunkServerToFile(String fileName, int numReplicas) {
         //make a random chunk server the location of this new file
         FileNode node = GetAtPath(fileName);
@@ -228,6 +275,10 @@ public class ServerMaster implements Callbackable {
         }
     }
 
+    /**
+     * Implements Callback function to close sockets
+     * @param inParameter socket to close
+     */
     @Override
     public void Callback(String inParameter) {
         synchronized (mSocketsToClose) {
@@ -236,16 +287,26 @@ public class ServerMaster implements Callbackable {
         }
     }
 
+    /**
+     * Thread that handles chunk server requests on the master server
+     */
     public class ServerMasterChunkServerThread extends Thread {
 
         ServerMaster mMaster;
         int mClientNum;
 
+        /**
+         * Constructor for ServerMasterChunkServerThread
+         * @param inMaster the ServerMaster
+         */
         public ServerMasterChunkServerThread(ServerMaster inMaster) {
             mMaster = inMaster;
             System.out.println("Creating chunk serving thread");
         }
 
+        /**
+         * Reads in messages from sockets and performs appropriate actions
+         */
         @Override
         public void run() {
             LoadFileStructure();
