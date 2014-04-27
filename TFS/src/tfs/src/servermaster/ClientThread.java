@@ -171,12 +171,10 @@ public class ClientThread extends Thread {
     }
     
     public Boolean ReadLockPath(String filePath) {
-        System.out.println("going to read lock " + filePath);
         return LockPath(filePath, false);
     }
     
     public Boolean WriteLockPath(String filePath) {
-        System.out.println("going to write lock " + filePath);
         return LockPath(filePath, true);
     }
     
@@ -193,10 +191,8 @@ public class ClientThread extends Thread {
             boolean dirExists = false;
             if (!curFile.mIsDirectory) {
                 if(isWriteLock){
-                    System.out.println("trying to lock " + curFile);
                     return curFile.RequestWriteLock();
                 } else {
-                    System.out.println("trying to lock " + curFile);
                     return curFile.RequestReadLock();
                 }
             }
@@ -207,10 +203,8 @@ public class ClientThread extends Thread {
                     dirExists = true;
                     Boolean success;
                     if(isWriteLock){
-                        System.out.println("trying to lock " + curFile);
                         success =  curFile.RequestWriteLock();
                     } else {
-                        System.out.println("trying to lock " + curFile);
                         success = curFile.RequestReadLock();
                     }
                     if(!success){
@@ -227,12 +221,10 @@ public class ClientThread extends Thread {
     }
     
     public void UnlockReadPath(String filePath) {
-        System.out.println("going to UNlock " + filePath);
         UnlockPath(filePath, false);
     }
     
     public void UnlockWritePath(String filePath) {
-        System.out.println("going to UNlock " + filePath);
         UnlockPath(filePath, true);
     }
     
@@ -249,11 +241,9 @@ public class ClientThread extends Thread {
             boolean dirExists = false;
             if (!curFile.mIsDirectory) {
                 if(isWriteLock){
-                    System.out.println("trying to UNlock " + curFile);
                     curFile.ReleaseWriteLock();
                     return;
                 } else {
-                    System.out.println("trying to UNlock " + curFile);
                     curFile.ReleaseReadLock();
                     return;
                 }
@@ -264,10 +254,8 @@ public class ClientThread extends Thread {
                     curFile = file;
                     dirExists = true;
                     if(isWriteLock){
-                        System.out.println("trying to UNlock " + curFile);
                         curFile.ReleaseWriteLock();
                     } else {
-                        System.out.println("trying to UNlock " + curFile);
                         curFile.ReleaseReadLock();
                     }
                     break;
