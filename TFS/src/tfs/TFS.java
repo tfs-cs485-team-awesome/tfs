@@ -14,12 +14,15 @@ import tfs.src.servermaster.ServerMaster;
 import tfs.src.test.TestCases;
 
 /**
- *
+ * Tiny File System
+ * Takes command line arguments and instantiates appropriate class 
  * @author laurencewong
  */
 public class TFS {
 
     /**
+     * Main function of the Tiny File System class
+     * Read in config file then start TFS
      * @param args the command line arguments
      */
     public static void main(String[] args) {
@@ -53,6 +56,11 @@ public class TFS {
         }
     }
 
+    /**
+     * Start function for TFS.  Takes in command line arguments and 
+     * runs server, client or test according to args
+     * @param args command line arguments
+     */
     public static void start(String[] args) {
         switch (args[0].toLowerCase()) {
             case "Server":
