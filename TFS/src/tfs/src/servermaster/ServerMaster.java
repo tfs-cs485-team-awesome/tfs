@@ -289,6 +289,9 @@ public class ServerMaster implements Callbackable {
             }
         }
 
+	/**
+	 * Loads the file structure from the SYSTEM_LOG.txt file
+	 */
         public void LoadFileStructure() {
             File file = new File("SYSTEM_LOG.txt");
             // create file if it does not exist
@@ -319,6 +322,11 @@ public class ServerMaster implements Callbackable {
             }
         }
 
+	/**
+	 * Deletes a file or directory from the SYSTEM_LOG.txt file
+	 * @param isDirectory If the thing being deleted is a directory a file
+	 * @param name  The name of the file/directory to delete
+	 */
         public void DeleteFromFileStructure(Boolean isDirectory, String name) {
             String lineToDelete;
             if (isDirectory) {
@@ -357,6 +365,10 @@ public class ServerMaster implements Callbackable {
             }
         }
 
+	/**
+	 * Creates a new directory using a name given by the SYSTEM_LOG.txt file
+	 * @param name The name of the directory to create
+	 */
         public void CreateNewSetupDir(String name) {
             // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
@@ -386,6 +398,10 @@ public class ServerMaster implements Callbackable {
             }
         }
 
+	/**
+	 * Creates a new file using a name given by the SYSTEM_LOG.txt file
+	 * @param name The name of the file to create
+	 */
         public void CreateNewSetupFile(String name) {
             // retrieve index of the last "/"
             int lastIndex = name.lastIndexOf("/");
@@ -408,7 +424,12 @@ public class ServerMaster implements Callbackable {
             newFile.mName = name.substring(lastIndex + 1, name.length());
             parentNode.mChildren.add(newFile);
         }
-
+	
+	/**
+	 * Parses the input from chunk servers
+	 * @param m The message from the chunk server
+	 * @return The reply message
+	 */
         public Message ParseChunkInput(Message m) {
             Message outputToChunk = new Message();
 
@@ -425,6 +446,11 @@ public class ServerMaster implements Callbackable {
             return outputToChunk;
         }
 
+	/**
+	 * Updates the location of a chunk
+	 * @param m The message that contains the information of the chunk
+	 * @param output The message to write output to
+	 */
         public void UpdateChunkLocations(Message m, Message output) {
             String inChunkServerLocation = m.ReadString();
             int numChunks = m.ReadInt();
@@ -453,6 +479,11 @@ public class ServerMaster implements Callbackable {
             }
         }
 
+	/**
+	 * Updates the timestamp of a chunk
+	 * @param m The message that contains the name of the file and the timestamp
+	 * @param output The message output 
+	 */
         public void UpdateChunkTimestamp(Message m, Message output) {
             String filename = m.ReadString();
             long timestamp = m.ReadLong();
