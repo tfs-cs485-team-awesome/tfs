@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import tfs.util.*;
 
 /**
- *
+ * A thread that handles all client interactions on the server master
  * @author laurencewong
  */
 public class ClientThread extends Thread {
@@ -30,10 +30,17 @@ public class ClientThread extends Thread {
 	FileNode mFileRoot;
 	ServerMaster mMaster;
 
+	/**
+	 * Initializes the containers that need to be instantiated
+	 */
 	public final void Init() {
 		mPendingMessages = new ArrayDeque<>();
 	}
 
+	/**
+	 * Sends the ID that the server master chose for this client to the actual
+	 * client
+	 */
 	public final void SendID() {
 		Message sendID = new Message();
 		sendID.WriteString("setid");
@@ -42,10 +49,21 @@ public class ClientThread extends Thread {
 		mPendingMessages.push(sendID);
 	}
 
+	/**
+	 * Returns the ID of this client
+	 * @return the id of this client
+	 */
 	public final String GetID() {
 		return mSocket.GetID();
 	}
 
+	/**
+	 * Creates a new client thread
+	 * @param inSocket The socket that the client is on
+	 * @param inMaster The server master that this clientThread is on
+	 * @param inID The ID of the client
+	 * @param inNode The root of the file tree
+	 */
 	public ClientThread(MySocket inSocket, ServerMaster inMaster, String inID, FileNode inNode) {
 		mSocket = inSocket;
 		mSocket.SetID(inID);
@@ -55,11 +73,19 @@ public class ClientThread extends Thread {
 		SendID();
 	}
 
+	/**
+	 * Closes this socket and stops the thread
+	 * @throws IOException 
+	 */
 	public void Close() throws IOException {
 		mSocket.close();
 		isRunning = false;
 	}
 
+	/**
+	 * The run loop of the client.  Reads in data from the socket and stores
+	 * it in a message.
+	 */
 	@Override
 	public void run() {
 		System.out.println("Running client thread");
@@ -84,6 +110,12 @@ public class ClientThread extends Thread {
 		this.interrupt();
 	}
 
+	/**
+	 * Stores the absolute path names of every file under the path given into
+	 * the m
+	 * @param path The absolute path to list the files under
+	 * @param m The message that the names are stored in
+	 */
 	public void GetFilesUnderPath(String path, Message m) {
 		FileNode topNode = GetAtPath(path);
 		if (topNode == null) {
@@ -103,6 +135,13 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Recursively reads the names of the files under curNOde and stores them in totalPaths.
+	 * @param curNode The current node that the recursive method 
+	 * @param totalPaths The list of absolute paths up until this point
+	 * @param parentPath The name of the parent
+	 * @param m The message to write the names to
+	 */
 	public void RecurseGetFilesUnderPath(FileNode curNode, ArrayList<String> totalPaths, String parentPath, Message m) {
 		if (curNode.mIsDirectory) {
 			totalPaths.add(parentPath + "/" + curNode.mName);
@@ -113,6 +152,16 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Recursively deletes all the directories and files under a path starting
+	 * at the filenode given and stores them in the arraylists
+	 * @param path The path to recursively delete under
+	 * @param file The filenode to start at
+	 * @param allDirs All the directories that have been deleted
+	 * @param allFiles All the files that have been deleted
+	 * @param m The message to write to
+	 * @return Whether or not the delete was successful
+	 */
 	public Boolean RecursiveDeleteDirectory(String path, FileNode file, ArrayList<String> allDirs, ArrayList<String> allFiles, Message m) {
 		// delete all children in the directory
 		Boolean success;
@@ -141,6 +190,11 @@ public class ClientThread extends Thread {
 		return true;
 	}
 
+	/**
+	 * Gets the filenode for a given filepath
+	 * @param filePath The filepath for which a node will be gotten from
+	 * @return The filenode that is at the filepath given
+	 */
 	public FileNode GetAtPath(String filePath) {
 		// check for the initial "/"
 		if (filePath.indexOf("/") != 0) {
@@ -179,6 +233,13 @@ public class ClientThread extends Thread {
 		return LockPath(filePath, true);
 	}
 
+	/**
+	 * Attempts to lock everything under the path given
+	 * @param filePath The path to lock everything under
+	 * @param isWriteLock Whether or not this is trying to get a readlock or
+	 * a write lock
+	 * @return Whether or not the lock was successful
+	 */
 	public Boolean LockPath(String filePath, Boolean isWriteLock) {
 		// check for the initial "/"
 		if (filePath.indexOf("/") != 0) {
@@ -229,6 +290,12 @@ public class ClientThread extends Thread {
 		UnlockPath(filePath, true);
 	}
 
+	/**
+	 * Attempts to unlock the path under the file path
+	 * @param filePath The path to unlock under
+	 * @param isWriteLock Whether or not this is unlocking the write or read
+	 * lock
+	 */
 	public void UnlockPath(String filePath, Boolean isWriteLock) {
 		// check for the initial "/"
 		if (filePath.indexOf("/") != 0) {
@@ -268,6 +335,11 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Parses the client's input to this server master
+	 * @param m The message to parse
+	 * @return The message to reply back to the client
+	 */
 	public Message ParseClientInput(Message m) {
 		Message outputToClient = new Message();
 
@@ -315,6 +387,12 @@ public class ClientThread extends Thread {
 		return outputToClient;
 	}
 
+	/**
+	 * Returns a file from the haystack given an index into the file
+	 * @param fileName The name of the haystack
+	 * @param inIndex The index of the file to get
+	 * @param output The message to output
+	 */
 	public void ReadHaystack(String fileName, int inIndex, Message output) {
 		System.out.println("Sending back info for readfile: " + fileName);
 		FileNode fileNode = GetAtPath(fileName);
@@ -340,6 +418,12 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Creates a new directory in the file structure.  Locks all of the directories
+	 * up until the directory to be made before writing the new directory in
+	 * @param name The absolute path of the directory to make
+	 * @param m The message to write to
+	 */
 	public void CreateNewDir(String name, Message m) {
 		// check for the initial "/"
 		int firstIndex = name.indexOf("/");
@@ -396,10 +480,22 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Helper function to call CreateNewFile with a default replica count of 2.
+	 * @param name The absolute path of the file to create
+	 * @param m The message to write output to
+	 */
 	public void CreateNewFile(String name, Message m) {
 		CreateNewFile(name, 2, m);
 	}
 
+	/**
+	 * Creates a new file given an absolute path and the number of replicas
+	 * the file should have.
+	 * @param name The absolute path of the file
+	 * @param numReplicas The number of replicas this file should have
+	 * @param m The message to write output to
+	 */
 	public void CreateNewFile(String name, int numReplicas, Message m) {
 		// check for the initial "/"
 		int firstIndex = name.indexOf("/");
@@ -471,6 +567,12 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Checks if a file exists and, if it does, returns the location of the
+	 * chunk and its replicas to the requesting client
+	 * @param fileName The absolute path of the file
+	 * @param output The message to write output to
+	 */
 	public void AppendFile(String fileName, Message output) {
 		FileNode file = GetAtPath(fileName);
 		if (file == null) {
@@ -507,6 +609,14 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Checks if a file exists and, if it does not, creates a new file and returns
+	 * the location of the new file and its replicas to the requesting client.
+	 * @param fileName The absolute path of the file
+	 * @param numReplicas The number of replicas that is being requested by
+	 * the client
+	 * @param output The message to write output to
+	 */
 	public void WriteFile(String fileName, int numReplicas, Message output) {
 
 		FileNode file = GetAtPath(fileName);
@@ -549,6 +659,12 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Checks if a file exists and is indeed a file and not a directory.  Then
+	 * returns the name of the file and the location of the chunk to the client
+	 * @param fileName The name of the file
+	 * @param output The message to write output to
+	 */
 	public void LogicalFileCount(String fileName, Message output) {
 		FileNode fileNode = GetAtPath(fileName);
 		if (fileNode == null) {
@@ -565,6 +681,11 @@ public class ClientThread extends Thread {
 		}
 	}
 
+	/**
+	 * Checks if a file exists and returns the file information to the client
+	 * @param fileName The name of the file to read
+	 * @param output The message to write output to
+	 */
 	public void ReadFile(String fileName, Message output) {
 		System.out.println("Sending back info for readfile: " + fileName);
 		FileNode fileNode = GetAtPath(fileName);
@@ -588,7 +709,12 @@ public class ClientThread extends Thread {
 			}
 		}
 	}
-
+        /**
+         * Checks if the given path points to a directory. If it is, and if there are any files in the directory, checks for locks in the file
+         * directory. If there are no locks, all files in the directory are printed.
+         * @param filePath
+         * @param m 
+         */
 	public void ListFiles(String filePath, Message m) {
 		System.out.println("Listing files for path: " + filePath);
 		m.WriteDebugStatement("Listing files for path: " + filePath);
@@ -623,7 +749,12 @@ public class ClientThread extends Thread {
 			m.WriteDebugStatement("Directory is locked, cancelling command");
 		}
 	}
-
+        /**
+         * Checks if the directory given is the root. If not, and if it exists, the directory is checked for any locks on the directory and
+         * on its parent directory. If there are no locks, the directory is deleted.
+         * @param path
+         * @param m 
+         */
 	public void DeleteDirectory(String path, Message m) {
 		// check for the first "/"
 		int firstIndex = path.indexOf("/");
@@ -711,7 +842,11 @@ public class ClientThread extends Thread {
 			m.WriteDebugStatement("File directory is locked, cancelling command");
 		}
 	}
-
+        /**
+         * Deletes the file at the given filepath, sends a message to the chunkservers to delete all replicas of the file
+         * @param filePath
+         * @param m 
+         */
 	public void DeleteFile(String filePath, Message m) {
 		// retrieve file node
 		FileNode file = GetAtPath(filePath);
@@ -745,7 +880,12 @@ public class ClientThread extends Thread {
 			mPendingMessages.push(toChunkServer);
 		}
 	}
-
+        /**
+         * Finds the file at the given pathname, checks if it is a directory or a file. If it is a file, the file is located, and if it exists,
+         * it is deleted from the file structure.
+         * @param isDirectory true if the given path points to a directory, false if it points to a file
+         * @param name pathname of the node to delete
+         */
 	public void DeleteFromFileStructure(Boolean isDirectory, String name) {
 		String lineToDelete;
 		if (isDirectory) {
