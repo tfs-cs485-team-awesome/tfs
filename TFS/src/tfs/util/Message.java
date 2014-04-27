@@ -54,11 +54,17 @@ public class Message implements Serializable {
     private int mWriteHead = 0;
     private byte[] mByteContents;
    
-
+    /**
+     * Default Constructor of Message
+     */
     public Message() {
        mByteContents = new byte[0];
     }
    
+    /**
+     * Constructor of Message
+     * @param inArray The array myByteContents is set to
+     */
     public Message(byte[] inArray) {
         mByteContents = inArray;
         mWriteHead = inArray.length; //assumes that inArray is full
@@ -71,10 +77,18 @@ public class Message implements Serializable {
         */
     }
     
+    /**
+     * Setter method for MySocket
+     * @param inSocket MySocket object that mSocket is set to
+     */
     public void SetSocket(MySocket inSocket) {
         mSocket = inSocket;
     }
     
+    /**
+     * Write message from mSocket
+     * @throws IOException 
+     */
     public void Send() throws IOException {
         mSocket.WriteMessage(this);
     }
@@ -134,15 +148,27 @@ public class Message implements Serializable {
         AppendData(ByteBuffer.allocate(4).putInt(i).array());
     }
     
+    /**
+     * Writes a long int
+     * @param i the long integer
+     */
     public void WriteLong(long i) {
         AppendData(ByteBuffer.allocate(8).putLong(i).array());
     }
     
+    /**
+     * Read a long int
+     * @return the long int
+     */
     public long ReadLong() {
         byte[] longData = ReadData(8);
         return ByteBuffer.wrap(longData).getLong();
     }
     
+    /**
+     * Read an int
+     * @return the int
+     */
     public int ReadInt() {
         byte[] intData = ReadData(4);
         return ByteBuffer.wrap(intData).getInt();
@@ -183,21 +209,41 @@ public class Message implements Serializable {
         }
     }
     
+    /**
+     * Write a debug statement to the byte array
+     * @param inDebugStatement the debug statement string
+     */
     public void WriteDebugStatement(String inDebugStatement) {
         WriteString("Print");
         WriteString(inDebugStatement);
     }
     
+    /**
+     * Checks whether array mByteContents is empty
+     * @return true is array is empty
+     */
     public boolean isEmpty() {
         return (mByteContents.length == 0);
     }
+    
+    /**
+     * Checks whether message is finished
+     * @return true if no data left in message
+     */
     public boolean isFinished() {
         return (mReadHead == mWriteHead);
     }
     
+    /**
+     * Resets mReadHead to 0
+     */
     public void ResetReadHead() {
         mReadHead = 0;
     }
+    
+    /**
+     * Resets mWriteHead to 0
+     */
     public void ResetWriteHead() {
         mWriteHead = 0;
     }

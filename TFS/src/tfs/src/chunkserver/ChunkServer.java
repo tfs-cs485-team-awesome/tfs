@@ -20,22 +20,27 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Timer;
-import java.util.TimerTask;
 import tfs.util.Message;
 import tfs.util.MySocket;
 import tfs.util.ChunkPendingAppend;
 import tfs.util.HeartbeatSocket;
 import tfs.util.Callbackable;
 
-//MAX_CHUNK_SIZE = 67108864;
 /**
+ * Class that represents the chunk servers. Implements callbackable so that the
+ * heartbeat socket can tell the chunkserver which sockets are no longer
+ * responding.
  *
  * @author laurencewong
  */
 public class ChunkServer implements Callbackable {
 
-	final int MAX_CHUNK_SIZE = 67108864; //64MB in bytes
-
+	/**
+	 * Callback pushes the dead socket's id onto the stack of sockets to
+	 * close
+	 *
+	 * @param inParameter The dead socket's id
+	 */
 	@Override
 	public void Callback(String inParameter) {
 		synchronized (mSocketsToClose) {
@@ -43,9 +48,13 @@ public class ChunkServer implements Callbackable {
 		}
 	}
 
-    //have chunks named: filename<chunk#>
+	//have chunks named: filename<chunk#>
 	//for example: if the actual file is stories.txt and it has 3 chunks,
 	//the chunks would be named stories-0, stories-1, stories-3
+	/**
+	 * Inner class that represents the chunks and gives easy access to read
+	 * and write methods for these chunks.
+	 */
 	private class Chunk {
 
 		String mChunkFileName;
@@ -53,10 +62,25 @@ public class ChunkServer implements Callbackable {
 		int mCurrentSize;
 		long mLastModified;
 
+		/**
+		 * Helper constructor for a chunk that assigns the current epoch
+		 * time to the chunk's mLastModified variable
+		 *
+		 * @param inName The name of the chunk
+		 * @throws IOException Throws if File.createNewFile fails
+		 */
 		public Chunk(String inName) throws IOException {
 			this(inName, System.currentTimeMillis() / 1000);
 		}
 
+		/**
+		 * Constructor for the chunk
+		 *
+		 * @param inName The name of the chunk being created
+		 * @param timeStamp The timestamp that this chunk is going to
+		 * have
+		 * @throws IOException Throws if File.createNewFile fails
+		 */
 		public Chunk(String inName, long timeStamp) throws IOException {
 			inName = inName.replaceAll("/", ".");
 			System.out.println("inName = " + inName);
@@ -65,13 +89,19 @@ public class ChunkServer implements Callbackable {
 			mChunkFileName = inName;
 			mLastModified = timeStamp;
 			if (!mChunkFile.createNewFile()) {
-                //createNewFile returns false if file already exists
+				//createNewFile returns false if file already exists
 				//not sure how to handle this yet
 			} else {
 				//file did not exist and has been created
 			}
 		}
 
+		/**
+		 * Method to append data to this chunk
+		 *
+		 * @param inData The byte array of data to append to the chunk
+		 * @return Whether or not AppendTo was successful
+		 */
 		public boolean AppendTo(byte[] inData) {
 			try {
 				Path filePath = Paths.get(mChunkFileName);
@@ -79,13 +109,8 @@ public class ChunkServer implements Callbackable {
 				RandomAccessFile raf = new RandomAccessFile(f, "rw");
 
 				if (f.exists()) {
-                    //BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
-					//byte[] intByte = new byte[4];
-					//in.mark(0);
 					int skippedBytes = 0;
 					while (raf.getFilePointer() < raf.length()) {
-                        //in.reset(); //move back to the point before the byte
-						//in.read(intByte);
 						int subFilesize = raf.readInt();
 						raf.skipBytes(subFilesize);
 						skippedBytes += subFilesize;
@@ -113,6 +138,15 @@ public class ChunkServer implements Callbackable {
 		}
 
 		//assumes that outData has already been instantiated to the correct size
+		/**
+		 * Method to read data from the chunk into a byte array given an
+		 * offset into the chunk and a length of data to read
+		 *
+		 * @param offset The byte offset into the file
+		 * @param length The length, in bytes, of how much data to read
+		 * @param outData The byte array to store the read data into
+		 * @return Whether or not ReadFrom was successful
+		 */
 		public boolean ReadFrom(int offset, int length, byte[] outData) {
 			try {
 				Path filePath = Paths.get(mChunkFileName);
@@ -130,6 +164,11 @@ public class ChunkServer implements Callbackable {
 			return true;
 		}
 
+		/**
+		 * Reads the entire chunk and returns it as a byte array
+		 *
+		 * @return The entire chunk's data as a byte array
+		 */
 		public byte[] ReadAllBytes() {
 			try {
 				Path filePath = Paths.get(mChunkFileName);
@@ -141,6 +180,13 @@ public class ChunkServer implements Callbackable {
 			return null;
 		}
 
+		/**
+		 * Overwrites all of the content in the chunk with the given
+		 * data
+		 *
+		 * @param inData The data to write in to the chunk
+		 * @return Whether or not the overwrite was successful
+		 */
 		public boolean Overwrite(byte[] inData) {
 			try {
 				Path filePath = Paths.get(mChunkFileName);
@@ -150,12 +196,6 @@ public class ChunkServer implements Callbackable {
 				System.out.println("Can't overwrite file: " + mChunkFileName);
 			}
 			return false;
-		}
-
-		//automatically fills up the chunk to the max chunk size
-		public boolean FillUp() {
-			mCurrentSize = MAX_CHUNK_SIZE;
-			return true;
 		}
 	}
 
@@ -173,12 +213,27 @@ public class ChunkServer implements Callbackable {
 	HashMap<String, ChunkPendingAppend> mChunkServices;
 	HeartbeatSocket mHeartbeatSocket;
 
+	/**
+	 * Returns the IP Address of the machine
+	 * @return The IP Address of the machine
+	 * @throws IOException if InetAddress.getLocalHost fails
+	 */
 	public final String GetIP() throws IOException {
 		String ip = InetAddress.getLocalHost().toString();
 		ip = ip.substring(ip.indexOf("/") + 1);
 		return ip;
 	}
 
+	/**
+	 * Initializes a connection with the master server via a 2 step process.
+	 * 1. Sends the master a message containing the IP address of the chunk
+	 * server and it's local listening port.
+	 * 2. Waits until it receives a message from the master server.  This
+	 * message contains the unique ID of this chunk server as designated by
+	 * the master server.  Once it has this ID it instantiates its heartbeat
+	 * socket.
+	 * @param inSocket The socket that the master server is on.
+	 */
 	public void InitConnectionWithMasterServer(MySocket inSocket) {
 		try {
 			System.out.println("Telling server that I am a chunkserver");
@@ -207,6 +262,11 @@ public class ChunkServer implements Callbackable {
 		}
 	}
 
+	/**
+	 * Initializes a connection with another chunk server by writing a message
+	 * containing this chunk server's ID and heartbeat socket information.
+	 * @param inSocket The socket that the chunk server is connected on
+	 */
 	public void InitConnectionWithChunkServer(MySocket inSocket) {
 		try {
 			System.out.println("Telling chunkserver that I am a fellow chunkserver");
@@ -222,6 +282,9 @@ public class ChunkServer implements Callbackable {
 		}
 	}
 
+	/**
+	 * Initializes all of the containers used by this chunk server
+	 */
 	public void Init() {
 		mChunks = new HashMap<>();
 		mClients = new ArrayList<>();
@@ -233,10 +296,11 @@ public class ChunkServer implements Callbackable {
 	}
 
 	/**
-	 *
+	 * Constructor for the chunk server.  After calling Init(), the constructor
+	 * instantiates the chunk server's listening port and then connects to the
+	 * master server
 	 * @param inConfigurationInformation Needs to be in format:
 	 * "serverIP:port"
-	 *
 	 */
 	public ChunkServer(String inConfigurationInformation, String inPort) {
 		Init();
@@ -254,6 +318,9 @@ public class ChunkServer implements Callbackable {
 		ConnectToServerMaster();
 	}
 
+	/**
+	 * Busy loops until the chunk server connects to the master server
+	 */
 	public void ConnectToServerMaster() {
 		while (true) {
 			try {
@@ -274,6 +341,12 @@ public class ChunkServer implements Callbackable {
 		InitConnectionWithMasterServer(mServerSocket);
 	}
 
+	/**
+	 * Searches through all of the sockets that this chunk server is connected
+	 * to and returns the one whose ID matches the given one.
+	 * @param inSocketID The ID of the requested socket.
+	 * @return The socket whose ID matches the given one.
+	 */
 	public MySocket GetSocketForID(String inSocketID) {
 		if (mChunkServers.containsKey(inSocketID)) {
 			return mChunkServers.get(inSocketID);
@@ -290,6 +363,10 @@ public class ChunkServer implements Callbackable {
 		return null;
 	}
 
+	/**
+	 * Removes the socket from list of sockets
+	 * @param inSocket The socket to remove
+	 */
 	public void RemoveSocket(MySocket inSocket) {
 		if (mChunkServers.remove(inSocket.GetID()) != null) {
 			return;
@@ -303,10 +380,17 @@ public class ChunkServer implements Callbackable {
 		}
 	}
 
+	/**
+	 * First instantiates the ChunkServerClientThread to handle socket
+	 * communications and then busy loops and blocks on the listening socket
+	 * until a new connection is made.  When a new connection is made, the type
+	 * of connection is read from the socket and is added to the heartbeatsocket's
+	 * send list.
+	 */
 	public void RunLoop() {
 		while (true) {
 			try {
-				ChunkServerClientThread clientServingThread = new ChunkServerClientThread(this);
+				ChunkServerClientThread clientServingThread = new ChunkServerClientThread();
 				clientServingThread.start();
 				while (true) {
 					MySocket newConnection = new MySocket(mListenSocket.accept());
@@ -349,17 +433,26 @@ public class ChunkServer implements Callbackable {
 		}
 	}
 
+	/**
+	 * Private class that handles all of the various connected sockets.
+	 */
 	private class ChunkServerClientThread extends Thread {
 
-		ChunkServer mMain;
 		int mClientNum;
 
-		public ChunkServerClientThread(ChunkServer inMain) {
-			mMain = inMain;
+		/**
+		 * Constructs a new instance of ChunkServerClientThread.
+		 */
+		public ChunkServerClientThread() {
 			System.out.println("Creating chunkServer client serving thread");
 
 		}
 
+		/**
+		 * The run loop for the ChunkServerClientThread.  Loops through
+		 * all of the connected sockets and handles any new messages that
+		 * they may have.  Also handles sending messages and closing sockets.
+		 */
 		public void run() {
 			LoadFileStructure();
 			while (true) {
@@ -423,6 +516,14 @@ public class ChunkServer implements Callbackable {
 			}
 		}
 
+		/**
+		 * Reads the first string of the given message and, depending on
+		 * the string, executes a method with the message.
+		 * @param m The message that is being parsed
+		 * @return A reply message to return on the same socket that the input
+		 * message was received on
+		 * @throws IOException if any of the methods also throw an exception
+		 */
 		public Message ParseServerInput(Message m) throws IOException {
 			Message outputToServer = new Message();
 			String input = m.ReadString();
@@ -451,6 +552,14 @@ public class ChunkServer implements Callbackable {
 			return outputToServer;
 		}
 
+		/**
+		 * Writes a message to the primary chunk server requesting an update
+		 * on a chunk.
+		 * @param filename The name of the chunk that needs to be updated
+		 * @param primaryChunkInfo The IP and port of the primary chunk server
+		 * @throws IOException if there is a problem initializing a new connection
+		 * with the primary chunk server
+		 */
 		public void UpdateChunk(String filename, String primaryChunkInfo) throws IOException {
 			if (!mChunks.containsKey(filename)) {
 				System.out.println("Trying to update chunk that does not exist on this server: " + filename);
@@ -458,13 +567,13 @@ public class ChunkServer implements Callbackable {
 			}
 			MySocket newChunkServerSocket;
 
-			synchronized (mMain.mChunkServers) {
-				if (!mMain.mChunkServers.containsKey(primaryChunkInfo)) {
+			synchronized (mChunkServers) {
+				if (!mChunkServers.containsKey(primaryChunkInfo)) {
 					newChunkServerSocket = new MySocket(primaryChunkInfo);
 					InitConnectionWithChunkServer(newChunkServerSocket);
 					mChunkServers.put(primaryChunkInfo, newChunkServerSocket);
 				} else {
-					newChunkServerSocket = mMain.mChunkServers.get(primaryChunkInfo);
+					newChunkServerSocket = mChunkServers.get(primaryChunkInfo);
 				}
 			}
 			Message outputToChunk = new Message();
@@ -473,54 +582,22 @@ public class ChunkServer implements Callbackable {
 			outputToChunk.SetSocket(newChunkServerSocket);
 			mPendingMessages.push(outputToChunk);
 		}
-		/*
-		 public void UnBecomePrimary(String chunkFilename) {
-		 synchronized (mChunkServices) {
-		 if (mChunkServices.get(chunkFilename) == null) {
-		 //chunk does not exist
-		 System.out.println("SUPER BAD ERROR: I am scheduled to unbecome"
-		 + " the primary of a missing chunk! :( :( :(");
-		 }
-		 mChunkServices.get(chunkFilename).mIsPrimary = false;
-		 //do other things that happen when i am no longer primary
-		 }
-		 }
-		 */
-		/*
-		 public void BecomePrimary(String chunkFilename, Message output) {
-		 //check if chunkfile exists
-		 if (mChunks.get(chunkFilename) == null) {
-		 //chunk does not exist
-		 //not sure what to do here :(
-		 System.out.println("Tried to become primary of chunk that does not exist");
-		 output.WriteDebugStatement("Tried to become primary of chunk that does not exist");
-		 return;
-		 }
-		 //chunk does exist
-		 System.out.println("Chunk I am to become primary of exists");
-		 ChunkAppendRequest chunkService = mChunkServices.get(chunkFilename);
-		 if (chunkService == null) {
-		 mChunkServices.put(chunkFilename, new ChunkAppendRequest(true, chunkFilename));
-		 } else {
-		 chunkService.mIsPrimary = true;
-		 }
-		 //scheduled to stop being primary in 60s
-		 Timer newTimer = new Timer();
-		 newTimer.schedule(new PrimaryTimer(chunkFilename) {
-		 @Override
-		 public void run() {
-		 UnBecomePrimary(chunkFilename);
-		 }
-		 }, 0, 60000);
-		 mPrimaryTimers.add(newTimer);
-		 output.WriteDebugStatement("Am the primary of chunk " + chunkFilename);
-		 }
-		 */
 
+		/**
+		 * Makes a new chunk on this server and assigns the current epoch
+		 * time as the last modified time.
+		 * @param chunkFilename The filename of the chunk to make
+		 */
 		public void MakeNewChunk(String chunkFilename) {
 			MakeNewChunk(chunkFilename, System.currentTimeMillis() / 1000);
 		}
 
+		/**
+		 * Makes a new chunk on this server and assigns the given name
+		 * to it along with the timestamp
+		 * @param chunkFilename The name of the chunk to make
+		 * @param timeStamp The timestamp to assign to this chunk
+		 */
 		public void MakeNewChunk(String chunkFilename, long timeStamp) {
 			try {
 				if (chunkFilename.startsWith("/")) {
@@ -540,6 +617,11 @@ public class ChunkServer implements Callbackable {
 			}
 		}
 
+		/**
+		 * Loads the chunks that this server has from the SYSTEM_LOG.txt
+		 * file.  Once the chunks are loaded, it tells the server what
+		 * chunks it has and what their last modified times were.
+		 */
 		public void LoadFileStructure() {
 			File file = new File("SYSTEM_LOG.txt");
 			// create file if it does not exist
@@ -580,6 +662,10 @@ public class ChunkServer implements Callbackable {
 			}
 		}
 
+		/**
+		 * Saves all of the chunks that this server has along with their
+		 * last times of modification to the SYSTEM_LOG.txt file.
+		 */
 		public void SaveFileStructure() {
 			System.out.println("Saving file structure");
 			try {
@@ -593,6 +679,13 @@ public class ChunkServer implements Callbackable {
 			}
 		}
 
+		/**
+		 * Parses a message from another chunk server.  First reads the
+		 * type of message and then calls a method based on what the type is
+		 * 
+		 * @param m The message to parse
+		 * @return A reply message
+		 */
 		public Message ParseChunkInput(Message m) {
 			Message outputToChunk = new Message();
 			String input = m.ReadString();
@@ -629,6 +722,14 @@ public class ChunkServer implements Callbackable {
 			return outputToChunk;
 		}
 
+		/**
+		 * Evaluates a message that was indicated to be an update file
+		 * response.  Gets a chunk from the mChunks hash map and overwrites
+		 * the data of this chunk with the data in the message.  Also
+		 * updates the time of the modification to the time indicated by
+		 * the message
+		 * @param m The message to read from
+		 */
 		public void EvaluateCSUpdateFileResponse(Message m) {
 			String fileName = m.ReadString();
 			long lastModified = m.ReadLong();
@@ -641,8 +742,16 @@ public class ChunkServer implements Callbackable {
 			mChunks.get(fileName).mLastModified = lastModified;
 		}
 
+		/**
+		 * Evaluates a message that was indicated to be a request to update
+		 * a file.  Reads in the name of the chunk to update and then writes
+		 * a reply with the name of the file, when it was last modified,
+		 * and the actual data contained in the chunk.
+		 * @param m The input message
+		 * @param output The output message
+		 */
 		public void EvaluateCSUpdateFile(Message m, Message output) {
-            //primary receives this from the server that needs to update its files
+			//primary receives this from the server that needs to update its files
 			//filename
 			String fileName = m.ReadString();
 			System.out.println("someone needs to update file: " + fileName);
@@ -665,6 +774,14 @@ public class ChunkServer implements Callbackable {
 			//requestedChunk.ReadFrom(mClientNum, mClientNum, outData)
 		}
 
+		/**
+		 * Evaluates a message that indicated it was an append file request
+		 * from another chunk server.  This writes the file to the operating
+		 * system and then replies to the primary chunk server whether or not
+		 * it was successful.
+		 * @param m The input message
+		 * @param output The output message
+		 */
 		public void EvaluateCSAppendFile(Message m, Message output) {
 			System.out.println("Got append request from another chunk server");
 			String clientID = m.ReadString();
@@ -680,6 +797,17 @@ public class ChunkServer implements Callbackable {
 			output.WriteLong(mChunks.get(filename).mLastModified);
 		}
 
+		/**
+		 * Evaluates a message that indicated that it was an append file
+		 * response.  First reads in the clientID of the client who
+		 * originally requested the append and name of the file to append
+		 * data to.  Then it reads in the information of the server that
+		 * sent the input message in addition to whether or not it was
+		 * successful.  It uses the read in information to search through
+		 * all of the pending append requests and updates the request that
+		 * matches the clientID and filename.
+		 * @param m The input message
+		 */
 		public void EvaluateCSAppendFileResponse(Message m) {
 			System.out.println("Received append file response");
 			String clientID = m.ReadString();
@@ -697,7 +825,7 @@ public class ChunkServer implements Callbackable {
 					//chunkService.resendMessage();
 				} else {
 					System.out.println("All servers were successful");
-                    //send success to client
+					//send success to client
 					//send servermaster the timestamp for the chunk
 					Message toServerMaster = new Message();
 					toServerMaster.WriteString("appendtimestamp");
@@ -711,6 +839,11 @@ public class ChunkServer implements Callbackable {
 			//need to check if the server is not in the chunkservices (which should never ever happen)
 		}
 
+		/**
+		 * Parses a message that came in on a client socket.
+		 * @param m The message to parse
+		 * @return A reply message.
+		 */
 		public Message ParseClientInput(Message m) {
 			Message outputToClient = new Message();
 			String input = m.ReadString();
@@ -718,10 +851,6 @@ public class ChunkServer implements Callbackable {
 			switch (input.toLowerCase()) {
 				case "print":
 					System.out.println(m.ReadString());
-					break;
-				case "seekfile":
-				case "seek":
-					SeekFile(m.ReadString(), m.ReadInt(), m.ReadInt(), outputToClient);
 					break;
 				case "appendfile":
 				case "append":
@@ -735,6 +864,9 @@ public class ChunkServer implements Callbackable {
 				case "logicalfilecount":
 					LogicalFileCount(m.ReadString(), outputToClient);
 					break;
+				case "readhaystackfile":
+					ReadHaystackFile(m.ReadString(), m.ReadInt(), outputToClient);
+					break;
 				default:
 					System.out.println("Client gave chunk server wrong command");
 					break;
@@ -743,6 +875,59 @@ public class ChunkServer implements Callbackable {
 			return outputToClient;
 		}
 
+		/**
+		 * Reads in a file that is stored in a haystack file.
+		 * @param fileName The name of the haystack file
+		 * @param inIndex The index of the file in the haystack file
+		 * @param output A reply message containing the data of the file.
+		 */
+		public void ReadHaystackFile(String fileName, int inIndex, Message output) {
+			try {
+				fileName = fileName.replaceAll("/", ".");
+				System.out.println("counting file " + fileName);
+				File f = new File(fileName);
+				int numFiles = 0;
+				RandomAccessFile raf = new RandomAccessFile(f, "r");
+				byte[] readData = null;
+				if (f.exists()) {
+					int skippedBytes = 0;
+					while (raf.getFilePointer() < raf.length()) {
+						//in.reset(); //move back to the point before the byte
+						//in.read(intByte);
+						int subFilesize = raf.readInt();
+						if (inIndex == numFiles) {
+							readData = new byte[subFilesize];
+							raf.read(readData);
+							break;
+						}
+						raf.skipBytes(subFilesize);
+						skippedBytes += subFilesize;
+						numFiles++;
+					}
+					raf.close();
+					if (numFiles != inIndex) { //index was never found
+						output.WriteDebugStatement("Haystackfile: " + fileName + " does not have index " + inIndex);
+					} else {
+						output.WriteString("cs-readfileresponse");
+						output.WriteString(fileName);
+						output.WriteInt(readData.length);
+						output.AppendData(readData);
+					}
+					System.out.println("Skipped: " + skippedBytes + "bytes");
+				} else {
+					output.WriteDebugStatement("File " + fileName + " does not exist");
+				}
+			} catch (IOException ioe) {
+				System.out.println(ioe.getMessage());
+			}
+		}
+
+		/**
+		 * Reads a chunk specified by the input message and returns the data
+		 * via the output message
+		 * @param input The input message
+		 * @param output The output message
+		 */
 		public void ReadFile(Message input, Message output) {
 			//Message format: filename, data, replicaip:port, ... 
 			String fileName = input.ReadString();
@@ -768,53 +953,37 @@ public class ChunkServer implements Callbackable {
 			}
 		}
 
-		public void SeekFile(String filename, int offset, int length, Message output) {
-			filename = filename.replaceAll("/", ".");
-			byte[] data = new byte[length];
-			Chunk chunkToRead = mChunks.get(filename);
-			if (chunkToRead == null) {
-				output.WriteDebugStatement("Chunk does not exist");
-				System.out.println("Chunk does not exist");
-			} else {
-				if (chunkToRead.ReadFrom(offset, length, data)) {
-					output.WriteString("cs-seekfileresponse");
-					output.WriteInt(length);
-					output.AppendData(data);
-				} else {
-					output.WriteDebugStatement("Failed to read given length from offset");
-				}
-			}
-		}
-
+		/**
+		 * Appends data to a file
+		 * @param filename The name of the chunk to append data to
+		 * @param inData The data to append to the chunk with the name given
+		 * @return 
+		 */
 		public boolean AppendToFile(String filename, byte[] inData) {
 			Chunk chunkToAppend = mChunks.get(filename);
 			if (chunkToAppend == null) {
 				MakeNewChunk(filename);
 				chunkToAppend = mChunks.get(filename);
 			}
-			if (chunkToAppend.mCurrentSize + 4 + inData.length > MAX_CHUNK_SIZE) {
-				System.out.println("Not enough space to append data");
-                //make a new chunk
-				//tell server that you're making a new chunk
-				//fill up the current chunk
-				chunkToAppend.FillUp();
-				//write into the new chunk
+			if (chunkToAppend.AppendTo(inData)) {
+				System.out.println("Appending data was successful");
+				return true;
+				//it was successful
 			} else {
-				//there is enough space
-				if (chunkToAppend.AppendTo(inData)) {
-					System.out.println("Appending data was successful");
-					return true;
-					//it was successful
-				} else {
-					System.out.println("Appending data was not successful");
-                    //it was not successful and need to tell primary unless
-					//i am the primary
-					return false;
-				}
+				System.out.println("Appending data was not successful");
+					//it was not successful and need to tell primary unless
+				//i am the primary
+				return false;
 			}
-			return false;
 		}
 
+		/**
+		 * First reads in the information for the chunk and the replicas.
+		 * Then, creates a new ChunkPendingAppend using the replicas' information.
+		 * After, it appends the data in the input message to the file and
+		 * then sends the replicas a message telling them to do the same.
+		 * @param input The input message
+		 */
 		public void ClientAppendToFile(Message input) {
 			//Message format: clientinfo, filename, data, replicaip:port, ... 
 			String clientID = input.ReadString();
@@ -829,12 +998,12 @@ public class ChunkServer implements Callbackable {
 
 			filename = filename.replace("/", ".");
 
-            //try to find a chunkservicerequest with this filename.  server should have
+			//try to find a chunkservicerequest with this filename.  server should have
 			//already sent a request to this server since this is the primary
 			if (replicaInfo.length > 0) {
 				ChunkPendingAppend mChunkService = mChunkServices.get(clientID + "-" + filename);
 				if (mChunkService == null) {
-                    //I should be the primary, but I don't have the service request yet
+					//I should be the primary, but I don't have the service request yet
 					//make a new one and assume that the server will tell me i'm primary later
 					System.out.println("Making a a new chunkservicerequest.");
 					mChunkService = new ChunkPendingAppend(filename);
@@ -845,15 +1014,15 @@ public class ChunkServer implements Callbackable {
 				for (String s : replicaInfo) {
 					System.out.println(s);
 					try {
-						synchronized (mMain.mChunkServers) {
+						synchronized (mChunkServers) {
 							MySocket newChunkServerSocket;
-							if (!mMain.mChunkServers.containsKey(s)) {
+							if (!mChunkServers.containsKey(s)) {
 								newChunkServerSocket = new MySocket(s);
 								InitConnectionWithChunkServer(newChunkServerSocket);
 								mChunkServers.put(s, newChunkServerSocket);
 								mChunkService.AddServer(newChunkServerSocket);
 							} else {
-								newChunkServerSocket = mMain.mChunkServers.get(s);
+								newChunkServerSocket = mChunkServers.get(s);
 								mChunkService.AddServer(newChunkServerSocket);
 							}
 						}
@@ -885,6 +1054,10 @@ public class ChunkServer implements Callbackable {
 			}
 		}
 
+		/**
+		 * Deletes a file given a filepath
+		 * @param filePath The filepath to the file to delete
+		 */
 		public void DeleteFile(String filePath) {
 			try {
 				if (filePath.indexOf("/") == 0) {
@@ -904,6 +1077,11 @@ public class ChunkServer implements Callbackable {
 			}
 		}
 
+		/**
+		 * Opens a file and counts the number of subfiles inside of it.
+		 * @param fileName The name of the haystack file
+		 * @param output The message to return to the sender.
+		 */
 		public void LogicalFileCount(String fileName, Message output) {
 			try {
 				fileName = fileName.replaceAll("/", ".");
@@ -914,12 +1092,12 @@ public class ChunkServer implements Callbackable {
 				RandomAccessFile raf = new RandomAccessFile(f, "rw");
 
 				if (f.exists()) {
-                    //BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
+					//BufferedInputStream in = new BufferedInputStream(Files.newInputStream(filePath));
 					//byte[] intByte = new byte[4];
 					//in.mark(0);
 					int skippedBytes = 0;
 					while (raf.getFilePointer() < raf.length()) {
-                        //in.reset(); //move back to the point before the byte
+						//in.reset(); //move back to the point before the byte
 						//in.read(intByte);
 						int subFilesize = raf.readInt();
 						raf.skipBytes(subFilesize);

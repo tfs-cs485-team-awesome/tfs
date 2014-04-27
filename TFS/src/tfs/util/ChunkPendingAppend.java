@@ -10,11 +10,13 @@ import java.io.*;
 import java.util.ArrayList;
 
 /**
- *
+ * Keeps track of which servers have replied with successful appends.
  * @author laurencewong
  */
 public class ChunkPendingAppend {
-    
+    /**
+     * Object to keep track of server's status.
+     */
     private class ServerStatus {
         boolean hasReplied = false;
         boolean isSuccessful = false;
@@ -51,7 +53,7 @@ public class ChunkPendingAppend {
     String mFilename;
     Message mAppendMessage;
     long mTimestamp;
-    
+
     public ChunkPendingAppend(MySocket[] inServerIDs, String inFilename) {
         mFilename = inFilename;
         mStatuses = new ArrayList<>();
@@ -66,11 +68,19 @@ public class ChunkPendingAppend {
         mStatuses = new ArrayList<>();
         mAppendMessage = new Message();
     }
-    
+    /**
+     * Adds a server to the list.
+     * @param inServerSocket 
+     */
     public void AddServer(MySocket inServerSocket) {
         mStatuses.add(new ServerStatus(inServerSocket));
     }
-    
+    /**
+     * Updates status of server depending on success of append.
+     * @param inServerID Server's ID
+     * @param isSucccessful Whether append was successful
+     * @param inFilename
+     */
     public void UpdateServerStatus(String inServerID, boolean isSucccessful, String inFilename) {
         if(!inFilename.equalsIgnoreCase(mFilename)) {
             System.out.println("Attempted to update a server's status in a pendingappend not for that file");
@@ -86,11 +96,17 @@ public class ChunkPendingAppend {
             }
         }
     }
-    
+    /**
+     * Updates the time stamp.
+     * @param inTimestamp 
+     */
     public void UpdateTimeStamp(long inTimestamp) {
         mTimestamp = inTimestamp > mTimestamp ? inTimestamp : mTimestamp;
     }
-    
+    /**
+     * Checks if all servers have replied.
+     * @return returns true or false
+     */
     public boolean AllServersReplied() {
         for(ServerStatus ss : mStatuses) {
             if(ss.GetReplied() == false) {
@@ -99,11 +115,17 @@ public class ChunkPendingAppend {
         }
         return true;
     }
-    
+    /**
+     * Gets the file name
+     * @return string containing file name
+     */
     public String GetFilename() {
         return mFilename;
     }
-    
+    /**
+     * Returns whether append was successful based on server status
+     * @return true or false depending on success
+     */
     public boolean WasSuccessful() {
         for(ServerStatus ss : mStatuses) {
             if(ss.GetSuccessful() == false) {
@@ -112,11 +134,17 @@ public class ChunkPendingAppend {
         }
         return true;
     }
-    
+    /**
+     * Gets message for appending
+     * @return Message
+     */
     public Message GetMessage() {
         return mAppendMessage;
     }
-    
+    /**
+     * Sends a request by writing a message to append
+     * @throws IOException 
+     */
     public void SendRequest() throws IOException {
         for(ServerStatus ss : mStatuses) {
             mAppendMessage.ResetReadHead();

@@ -24,7 +24,10 @@ public class TestCases {
 
     public Client testClient;
     public String ipAndPort;
-
+    /**
+     * Runs test case based on user input.
+     * @param args 
+     */
     public static void main(String[] args) {
         TestCases tc = new TestCases();
 
@@ -95,7 +98,10 @@ public class TestCases {
             System.out.println(ie.getMessage());
         }
     }
-
+    /**
+     * Determines which test to run based on user input.
+     * @param params 
+     */
     public void EvaluateInput(String[] params) {
         try {
             switch (params[0].toLowerCase()) {
@@ -151,6 +157,8 @@ public class TestCases {
 
     /**
      * Create a hierarchical directory structure.
+     * @param numDirs number of directories to create
+     * @param numSubs number of subdirectories to create
      */
     public void test1(int numDirs, int numSubs) {
         try {
@@ -187,7 +195,12 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Create N files in a directory and its subdirectories
+     * @param filePath directory to create files in
+     * @param numFiles number of files to create
+     * @throws InterruptedException 
+     */
     public void test2(String filePath, int numFiles) throws InterruptedException {
 
         try {
@@ -206,7 +219,10 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Delete a hierarchical directory structure including the files in those directories
+     * @param pathName 
+     */
     public void test3(String pathName) {
         try {
             testClient.DeleteFile(pathName);
@@ -215,7 +231,12 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Store a file on the local machine in a target TFS file specified by its path. 
+     * @param localpath path for file on local machine
+     * @param remotepath path for target TFS file
+     * @param numReplicas 
+     */
     public void test4(String localpath, String remotepath, int numReplicas) {
         try {
             testClient.WriteFile(localpath, remotepath, numReplicas);
@@ -225,7 +246,11 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Read the content of a TFS file and store it on the specified file on the local machine.
+     * @param pathname path for TFS file
+     * @param localpath path for file on local machine
+     */
     public void test5(String pathname, String localpath) {
         try {
             testClient.ReadFile(pathname, localpath);
@@ -234,7 +259,11 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Append the size and content of a file stored on the local machine in a target TFS file specified by its path.
+     * @param localpath path for file on local machine
+     * @param pathname path for target TFS file
+     */
     public void test6(String localpath, String pathname) {
         try {
             testClient.AppendFile(localpath, pathname);
@@ -243,7 +272,10 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Count the number of logical files stored in a TFS file using Test6 and printout the results.
+     * @param pathname 
+     */
     public void test7(String pathname) {
         try {
             testClient.CountFiles(pathname);
@@ -252,7 +284,9 @@ public class TestCases {
             e.printStackTrace();
         }
     }
-
+    /**
+     * Executes test 6, waits 3 seconds, and stops running.
+     */
     private class ClientTimerTask extends Thread {
 
         Client c;
@@ -299,7 +333,14 @@ public class TestCases {
         }
 
     }
-
+    /**
+     * Multiple instances of Test6 running using different TFS Clients, appending different images to one TFS file.  
+     * This requires atomic append where the TFS defines the offset at which it appends an image.
+     * @param ipAndPort IP and port number of server master
+     * @param localpath
+     * @param pathname
+     * @param numInstances number of clients to create
+     */
     public void test8(final String ipAndPort, final String localpath, final String pathname, int numInstances) {
         Random r = new Random();
         Timer clientTimer = new Timer();
